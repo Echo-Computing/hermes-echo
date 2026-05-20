@@ -1,7 +1,7 @@
 """Main CLI entry point for Hermes"""
 
 import click
-from hermes_cli.commands import init, task, run, log, history
+from hermes_cli.commands import init, task, run, log, history, echo
 
 
 @click.group()
@@ -17,6 +17,7 @@ cli.add_command(task)
 cli.add_command(run)
 cli.add_command(log)
 cli.add_command(history)
+cli.add_command(echo)
 
 
 if __name__ == "__main__":
