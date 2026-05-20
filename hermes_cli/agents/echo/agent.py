@@ -11,6 +11,7 @@ from langgraph.graph import StateGraph, END
 from loguru import logger
 
 import httpx
+import re
 
 from hermes_cli.agents.echo.state import EchoState
 from hermes_cli.agents.echo.memory import MemoryStore
@@ -260,8 +261,7 @@ def execute_tools(state: EchoState) -> EchoState:
 
 
 def format_response(state: EchoState) -> EchoState:
-    """Node 5: Clean the response and save to conversation history."""
-    import re
+    """Node 5: Clean XML artifacts from response and save to history."""
     response = state.get("response", "")
 
     # Strip tool_call and tools XML blocks from the final response
