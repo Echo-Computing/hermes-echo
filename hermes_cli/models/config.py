@@ -65,6 +65,19 @@ class LangfuseConfig(BaseModel):
     secret_key: Optional[str] = None
 
 
+class EchoConfig(BaseModel):
+    """Echo agent settings"""
+
+    model: str = Field(default="qwen3.6:35b", description="Default model for Echo agent")
+    max_tool_calls: int = Field(default=10, ge=1, le=50, description="Max tool iterations per turn")
+    context_messages: int = Field(default=50, ge=5, le=200, description="Chat history messages to keep")
+    shell_timeout: int = Field(default=120, ge=1, le=600, description="Shell command timeout (seconds)")
+    confirm_destructive: bool = Field(default=True, description="Confirm before destructive commands")
+    auto_memory: bool = Field(default=True, description="Auto-save corrections and decisions")
+    memory_dir: Path = Field(default=Path.home() / ".hermes" / "memory", description="Memory directory")
+    history_dir: Path = Field(default=Path.home() / ".hermes" / "history" / "echo", description="History directory")
+
+
 class HermesConfig(BaseModel):
     """Hermes全体設定"""
 
@@ -76,6 +89,7 @@ class HermesConfig(BaseModel):
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     langfuse: LangfuseConfig = Field(default_factory=LangfuseConfig)
+    echo: EchoConfig = Field(default_factory=EchoConfig)
 
     class Config:
         use_enum_values = True
