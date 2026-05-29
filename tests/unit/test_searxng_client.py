@@ -13,11 +13,19 @@ class TestSearxNGClient:
     @pytest.fixture
     def searxng_client(self, test_config):
         """SearxNGClientインスタンス"""
-        return SearxNGClient(
-            searxng_url=test_config.search.searxng_base_url,
-            redis_url=test_config.search.redis_url,
-            cache_ttl=test_config.search.cache_ttl,
-        )
+        # Mock redis.from_url to avoid connecting to real Redis
+        mock_redis = AsyncMock()
+        mock_redis.get = AsyncMock(return_value=None)
+        mock_redis.setex = AsyncMock()
+        mock_redis.close = AsyncMock()
+
+        with patch("redis.asyncio.from_url", return_value=mock_redis):
+            client = SearxNGClient(
+                searxng_url=test_config.search.searxng_base_url,
+                redis_url=test_config.search.redis_url,
+                cache_ttl=test_config.search.cache_ttl,
+            )
+        return client
 
     @pytest.mark.asyncio
     async def test_init(self, searxng_client, test_config):
@@ -32,70 +40,70 @@ class TestSearxNGClient:
             # モックレスポンス設定
             mock_response = AsyncMock()
             mock_response.status_code = 200
-            mock_response.json = AsyncMock(return_value=mock_search_response)
+            mock_response.json = MagicMock(return_value=mock_search_response)
             mock_get.return_value = mock_response
 
-            # Redisキャッシュをモック
-            with patch("redis.Redis.get", return_value=None):
-                with patch("redis.Redis.set"):
-                    # テスト実行
-                    results = await searxng_client.search("test query")
+            # テスト実行
+            result = await searxng_client.search("test query")
 
-                    # 検証
-                    assert results is not None
-                    assert len(results) == 2
-                    assert results[0]["title"] == "Test Result 1"
-                    assert results[1]["title"] == "Test Result 2"
-                    mock_get.assert_called_once()
+            # 検証
+            assert result is not None
+            assert len(result.results) == 2
+            assert result.results[0].title == "Test Result 1"
+            assert result.results[1].title == "Test Result 2"
+            mock_get.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_search_with_cache(self, searxng_client, mock_search_response):
         """キャッシュヒット時の検索テスト"""
-        cached_data = json.dumps(mock_search_response)
+        # Set up redis mock to return cached data
+        cached_json = json.dumps({
+            "query": "test query",
+            "results": [
+                {"title": "Test Result 1", "url": "https://example.com/1",
+                 "snippet": "Test content 1", "engine": "google", "score": None},
+                {"title": "Test Result 2", "url": "https://example.com/2",
+                 "snippet": "Test content 2", "engine": "bing", "score": None},
+            ],
+            "total_results": 2,
+            "search_time": 0.0,
+            "cached": False,
+        })
+        searxng_client.redis_client.get.return_value = cached_json
 
-        with patch("redis.Redis.get", return_value=cached_data):
-            with patch("httpx.AsyncClient.get") as mock_get:
-                # テスト実行
-                results = await searxng_client.search("test query")
+        with patch("httpx.AsyncClient.get") as mock_get:
+            result = await searxng_client.search("test query")
 
-                # 検証
-                assert results is not None
-                assert len(results) == 2
-                # キャッシュヒットしたのでHTTPリクエストは呼ばれない
-                mock_get.assert_not_called()
+            assert result is not None
+            assert len(result.results) == 2
+            # キャッシュヒットしたのでHTTPリクエストは呼ばれない
+            mock_get.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_search_failure(self, searxng_client):
         """検索失敗テスト"""
+        searxng_client.redis_client.get.return_value = None
+
         with patch("httpx.AsyncClient.get") as mock_get:
-            # エラーレスポンス設定
             mock_get.side_effect = Exception("Connection error")
 
-            # Redisキャッシュをモック
-            with patch("redis.Redis.get", return_value=None):
-                # テスト実行
-                results = await searxng_client.search("test query")
+            with pytest.raises(Exception):
+                await searxng_client.search("test query")
 
-                # 検証
-                assert results == []
-                mock_get.assert_called_once()
+            mock_get.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_search_empty_results(self, searxng_client):
         """空の検索結果テスト"""
+        searxng_client.redis_client.get.return_value = None
+
         with patch("httpx.AsyncClient.get") as mock_get:
-            # 空の結果
             mock_response = AsyncMock()
             mock_response.status_code = 200
-            mock_response.json = AsyncMock(return_value={"query": "test", "results": []})
+            mock_response.json = MagicMock(return_value={"query": "test", "results": []})
             mock_get.return_value = mock_response
 
-            # Redisキャッシュをモック
-            with patch("redis.Redis.get", return_value=None):
-                with patch("redis.Redis.set"):
-                    # テスト実行
-                    results = await searxng_client.search("test query")
+            result = await searxng_client.search("test query")
 
-                    # 検証
-                    assert results == []
-                    mock_get.assert_called_once()
+            assert len(result.results) == 0
+            mock_get.assert_called_once()

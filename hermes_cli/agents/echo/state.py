@@ -40,4 +40,11 @@ class EchoState(TypedDict, total=False):
     iteration_count: int
     workspace: str
     response: Optional[str]
+    correction_context: Optional[Dict[str, str]]  # {user_msg, prior_response} or None
+    pending_memory_fact: Optional[str]  # Queued fact for auto-memory consolidation
+    pending_idea: Optional[str]  # Raw idea text from /idea command
+    idea_active: bool  # Whether agent is in ideation exploration mode
+    idea_start_index: Optional[int]  # Message index where /idea exploration began
+    pending_session_action: Optional[str]  # "summarize" on /exit, else None
+    auto_memory_count: int  # Tracks auto-memory saves this session
     should_continue: bool

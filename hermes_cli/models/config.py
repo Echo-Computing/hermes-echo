@@ -65,10 +65,33 @@ class LangfuseConfig(BaseModel):
     secret_key: Optional[str] = None
 
 
+class LearningConfig(BaseModel):
+    """Echo agent self-improvement settings"""
+
+    enabled: bool = True
+    auto_memory: bool = True
+    auto_memory_max_per_session: int = Field(default=2, ge=0, le=10)
+    correction_reflection: bool = True
+    session_summary: bool = True
+    history_search: bool = True
+    history_search_limit: int = Field(default=10, ge=1, le=50)
+
+
+class ResearchConfig(BaseModel):
+    """Collaborative multi-agent research settings (Co-Scientist + Robin inspired)"""
+
+    max_rounds: int = Field(default=3, ge=0, le=100, description="Max research iteration rounds (0=unlimited)")
+    debates_per_round: int = Field(default=10, ge=0, le=50, description="Max ELO debates per round")
+    hypotheses_per_round: int = Field(default=5, ge=1, le=20, description="Max hypotheses generated per round")
+    parallel_instances: int = Field(default=3, ge=1, le=5, description="Finch-style parallel code execution instances")
+    code_timeout: int = Field(default=30, ge=5, le=120, description="Code execution sandbox timeout (seconds)")
+    search_results_per_query: int = Field(default=5, ge=1, le=10, description="Search results per sub-question")
+
+
 class EchoConfig(BaseModel):
     """Echo agent settings"""
 
-    model: str = Field(default="qwen3.6:35b", description="Default model for Echo agent")
+    model: str = Field(default="kimi-k2.6:cloud", description="Default model for Echo agent")
     max_tool_calls: int = Field(default=10, ge=1, le=50, description="Max tool iterations per turn")
     context_messages: int = Field(default=50, ge=5, le=200, description="Chat history messages to keep")
     shell_timeout: int = Field(default=120, ge=1, le=600, description="Shell command timeout (seconds)")
@@ -76,6 +99,8 @@ class EchoConfig(BaseModel):
     auto_memory: bool = Field(default=True, description="Auto-save corrections and decisions")
     memory_dir: Path = Field(default=Path.home() / ".hermes" / "memory", description="Memory directory")
     history_dir: Path = Field(default=Path.home() / ".hermes" / "history" / "echo", description="History directory")
+    learning: LearningConfig = Field(default_factory=LearningConfig)
+    research: ResearchConfig = Field(default_factory=ResearchConfig)
 
 
 class HermesConfig(BaseModel):

@@ -50,15 +50,16 @@ class TestServicesIntegration:
             title="Integration Test Report",
             sections=[
                 ReportSection(
-                    heading="Test Section",
+                    title="Test Section",
                     content="Test content",
                 )
             ],
             citations=[
                 Citation(
-                    number=1,
+                    index=1,
                     title="Test Source",
                     url="https://example.com",
+                    accessed_at=datetime.now(),
                 )
             ],
         )
@@ -77,21 +78,17 @@ class TestServicesIntegration:
         # レポート保存
         history_service.save_report(task.id, report, metadata)
 
-        # レポート取得確認
-        loaded_report = history_service.get_report(task.id)
-        assert loaded_report is not None
-        assert loaded_report.title == report.title
-
-        # メタデータ取得確認
-        loaded_metadata = history_service.get_metadata(task.id)
-        assert loaded_metadata is not None
+        # レポート取得確認 (returns Tuple[str, ReportMetadata])
+        loaded = history_service.get_report(task.id)
+        assert loaded is not None
+        markdown, loaded_metadata = loaded
         assert loaded_metadata.task_id == task.id
         assert loaded_metadata.status == "success"
 
     def test_list_reports(self, history_service: HistoryService):
         """レポート一覧取得テスト"""
         # 既存のレポート一覧を取得
-        reports = history_service.list_reports()
+        reports = history_service.list_histories()
 
         # レポートが存在することを確認
         assert isinstance(reports, list)

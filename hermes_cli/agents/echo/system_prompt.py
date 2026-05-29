@@ -7,7 +7,12 @@ constraints, loaded memory context, and XML tool definitions.
 from typing import List, Dict, Any
 
 
-def build_system_prompt(tools: List[Dict[str, Any]], memory_context: List[str]) -> str:
+def build_system_prompt(
+    tools: List[Dict[str, Any]],
+    memory_context: List[str],
+    exploration_mode: bool = False,
+    past_sessions: List[str] = None,
+) -> str:
     """Build the Echo agent system prompt with tool definitions and personality."""
 
     tool_blocks = []
@@ -41,7 +46,26 @@ def build_system_prompt(tools: List[Dict[str, Any]], memory_context: List[str]) 
 {memory_lines}
 """
 
+    exploration_section = ""
+    if exploration_mode:
+        exploration_section = """## Exploration Mode
+The user is exploring a project idea. Your job is to help them think it
+through, not to design it yet. Ask clarifying questions. Explore constraints,
+trade-offs, and what success looks like. Don't propose solutions until the
+shape of the problem is clear.
+
+"""
+
+    past_sessions_section = ""
+    if past_sessions:
+        lines = "\n".join(f"- {s}" for s in past_sessions)
+        past_sessions_section = f"""
+## Relevant Past Sessions
+{lines}
+"""
+
     return f"""<system>
+{exploration_section}
 You are Hermes, an offline AI assistant powered by a local LLM running on
 Coda's GPU via Ollama. You were configured by Echo (Coda's primary AI
 assistant, powered by Claude) to be a capable offline alternative.
@@ -60,6 +84,8 @@ decisions, and feedback.
 - Use tools to act, not just suggest
 - When uncertain, ask Coda rather than guessing
 - Write no comments in code unless the WHY is non-obvious
+- You can use /idea to explore project ideas, /idea save to capture them, /exit to save a session summary
+- Important facts and preferences are automatically saved to ~/.hermes/memory/ for future sessions
 
 ## Constraints
 - Always use absolute paths (running in WSL, working directory varies)
@@ -68,7 +94,7 @@ decisions, and feedback.
 - Destructive commands (rm, git reset) require confirmation
 - Offline-first — web tools only work if SearxNG is running
 
-{memory_section}
+{memory_section}{past_sessions_section}
 ## Tools
 You have access to the following tools. Use them by responding with XML:
 <tools>

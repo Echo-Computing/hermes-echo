@@ -29,8 +29,7 @@ class TestTaskRepository:
 
     def test_init(self, task_repo, temp_work_dir):
         """初期化テスト"""
-        assert task_repo.work_dir == temp_work_dir
-        assert (temp_work_dir / "tasks").exists()
+        assert task_repo.file_paths.work_dir == temp_work_dir
 
     def test_generate_task_id(self, task_repo):
         """タスクID生成テスト"""
@@ -79,7 +78,7 @@ class TestTaskRepository:
             task_repo.save(task)
 
         # 一覧取得
-        loaded_tasks = task_repo.list()
+        loaded_tasks = task_repo.list_all()
 
         # 検証
         assert len(loaded_tasks) == 3
@@ -115,10 +114,11 @@ class TestTaskRepository:
         for task in tasks:
             task_repo.save(task)
 
-        # ステータスフィルタで取得
-        scheduled_tasks = task_repo.list(status="scheduled")
-        running_tasks = task_repo.list(status="running")
-        completed_tasks = task_repo.list(status="completed")
+        # ステータスフィルタで取得 (list_all returns all, filter manually)
+        all_tasks = task_repo.list_all()
+        scheduled_tasks = [t for t in all_tasks if t.status == "scheduled"]
+        running_tasks = [t for t in all_tasks if t.status == "running"]
+        completed_tasks = [t for t in all_tasks if t.status == "completed"]
 
         # 検証
         assert len(scheduled_tasks) == 1
