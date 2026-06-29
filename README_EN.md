@@ -1,5 +1,7 @@
 # Hermes
 
+> **hermes-echo** — an extended fork of [yasutoshi-lab/Hermes](https://github.com/yasutoshi-lab/Hermes) maintained by [Echo-Computing](https://github.com/Echo-Computing). It adds the **Echo agent**: an interactive LangGraph chat agent with file/shell/search/memory/web tools, learning (correction reflection, auto-memory, idea capture, session summaries), and a collaborative multi-agent research mode. All upstream features are preserved. MIT license; upstream copyright retained.
+
 [日本語ドキュメント](README.md)
 
 > Advanced Information Gathering Agent based on Local LLM
