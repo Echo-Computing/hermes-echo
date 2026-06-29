@@ -2,51 +2,51 @@
 
 > **hermes-echo** — an extended fork of [yasutoshi-lab/Hermes](https://github.com/yasutoshi-lab/Hermes) maintained by [Echo-Computing](https://github.com/Echo-Computing). It adds the **Echo agent**: an interactive LangGraph chat agent with file/shell/search/memory/web tools, learning (correction reflection, auto-memory, idea capture, session summaries), and a collaborative multi-agent research mode. All upstream features are preserved. MIT license; upstream copyright retained.
 
-[English Documentation](README_EN.md)
+[日本語ドキュメント](README_JA.md)
 
-> ローカルLLMベースの高度な情報収集エージェント
+> Advanced Information Gathering Agent based on Local LLM
 
-**Hermes** は、研究者や技術者向けのローカル実行可能な CLI 情報収集エージェントです。Web検索、コンテンツ分析、レポート生成までを自動化し、高品質なリサーチレポートを作成します。
+**Hermes** is a locally executable CLI information gathering agent for researchers and engineers. It automates everything from web searches and content analysis to report generation, creating high-quality research reports.
 
-## 概要
+## Overview
 
-Hermesは、ローカルLLM（Large Language Model）を活用した次世代のリサーチエージェントです。プライバシーを保護しながら、包括的なWeb検索と高度な分析を実行し、引用付きの高品質なレポートを自動生成します。
+Hermes is a next-generation research agent that utilizes a local LLM (Large Language Model). It performs comprehensive web searches and advanced analysis while protecting privacy, automatically generating high-quality reports with citations.
 
-主な用途:
-- 技術調査レポートの自動生成
-- 市場分析・競合分析
-- 学術研究の情報収集
-- トレンド分析
-- 複数ソースからの情報統合
+Main Use Cases:
+- Automatic generation of technical research reports
+- Market analysis and competitive analysis
+- Information gathering for academic research
+- Trend analysis
+- Integration of information from multiple sources
 
-## 特徴
+## Features
 
-- 🔒 **完全ローカル実行**: 外部API課金なし、プライバシー完全保護
-- 🔍 **インテリジェント検索**: SearxNG経由で複数検索エンジンを統合
-- 🤖 **自動検証ループ**: 情報の矛盾や不足を自動検出・修正
-- 📝 **高品質レポート**: Markdown形式で引用付きレポートを自動生成
-- 🎯 **CLI特化**: シェルスクリプト・自動化との統合が容易
-- 📊 **トレーサビリティ**: Langfuseによる実行トレース記録（オプション）
-- **マルチステージワークフロー**: LangGraphによる柔軟なエージェントフロー
-- **並列検索処理**: 複数クエリの並列実行で高速な情報収集
-- **インテリジェントキャッシング**: Redis による検索結果のキャッシング
-- **品質保証**: 複数回の検証ループによる高精度な出力
-- **拡張性**: モジュラー設計による機能追加の容易さ
+- 🔒 **Complete Local Execution**: No external API billing, complete privacy protection
+- 🔍 **Intelligent Search**: Integrates multiple search engines via SearxNG
+- 🤖 **Automatic Validation Loop**: Automatically detects and corrects information contradictions and deficiencies
+- 📝 **High-Quality Reports**: Automatically generates reports in Markdown format with citations
+- 🎯 **CLI-Focused**: Easy integration with shell scripts and automation
+- 📊 **Traceability**: Optional execution trace recording with Langfuse
+- **Multi-Stage Workflow**: Flexible agent flow with LangGraph
+- **Parallel Search Processing**: Fast information gathering with parallel execution of multiple queries
+- **Intelligent Caching**: Caching of search results with Redis
+- **Quality Assurance**: High-precision output through multiple validation loops
+- **Extensibility**: Easy to add new features due to modular design
 
-## ドキュメント
+## Documentation
 
-- **[セットアップガイド](./doc/setup/setup_ja.md)**: インストールと環境構築の詳細手順
-- **コマンドリファレンス**:
-    - [`hermes init`](./doc/command/init_cmd_ja.md)
-    - [`hermes task`](./doc/command/task_cmd_ja.md)
-    - [`hermes run`](./doc/command/run_cmd_ja.md)
-    - [`hermes log`](./doc/command/log_cmd_ja.md)
-    - [`hermes history`](./doc/command/history_cmd_ja.md)
-- **[設定ファイル (`config.yaml`)](./doc/config/config_ja.md)**: `config.yaml` の詳細な設定方法
-- **[テスト戦略](./doc/test/tests_ja.md)**: プロジェクトのテストに関する方針
-- **[トラブルシューティング](./doc/troubleshooting/troubleshooting_ja.md)**: よくある問題とその解決策
+- **[Setup Guide](./doc/setup/setup_en.md)**: Detailed instructions for installation and environment setup.
+- **Command Reference**:
+    - [`hermes init`](./doc/command/init_cmd_en.md)
+    - [`hermes task`](./doc/command/task_cmd_en.md)
+    - [`hermes run`](./doc/command/run_cmd_en.md)
+    - [`hermes log`](./doc/command/log_cmd_en.md)
+    - [`hermes history`](./doc/command/history_cmd_en.md)
+- **[Configuration File (`config.yaml`)](./doc/config/config_en.md)**: Detailed configuration for `config.yaml`.
+- **[Testing Strategy](./doc/test/tests_en.md)**: The project's policy on testing.
+- **[Troubleshooting](./doc/troubleshooting/troubleshooting_en.md)**: Common problems and their solutions.
 
-## アーキテクチャ
+## Architecture
 
 ```
 ┌─────────────────┐
@@ -57,37 +57,37 @@ Hermesは、ローカルLLM（Large Language Model）を活用した次世代の
          v
 ┌─────────────────────────────────────────┐
 │         Prompt Normalizer               │
-│  (プロンプトの正規化・前処理)            │
+│  (Prompt normalization/preprocessing)   │
 └────────┬────────────────────────────────┘
          │
          v
 ┌─────────────────────────────────────────┐
 │       Query Generator                   │
-│  (LLMによる検索クエリ生成)               │
+│  (Search query generation by LLM)       │
 └────────┬────────────────────────────────┘
          │
          v
 ┌─────────────────────────────────────────┐
 │       Web Researcher                    │
-│  (SearxNGによる並列Web検索)              │
+│  (Parallel web search by SearxNG)       │
 └────────┬────────────────────────────────┘
          │
          v
 ┌─────────────────────────────────────────┐
 │    Container Processor                  │
-│  (LLMによるコンテンツ分析・要約)          │
+│  (Content analysis/summary by LLM)      │
 └────────┬────────────────────────────────┘
          │
          v
 ┌─────────────────────────────────────────┐
 │      Draft Aggregator                   │
-│  (ドラフトレポート作成)                  │
+│  (Draft report creation)                │
 └────────┬────────────────────────────────┘
          │
          v
 ┌─────────────────────────────────────────┐
 │         Validator                       │
-│  (レポート検証・改善提案)                │
+│  (Report validation/improvement proposal)│
 └────────┬────────────────────────────────┘
          │
          v
@@ -99,75 +99,85 @@ Hermesは、ローカルLLM（Large Language Model）を活用した次世代の
      v       v
 ┌─────────┐ ┌─────────────────┐
 │ Query   │ │ Final Reporter  │
-│Generator│ │ (最終レポート)   │
+│Generator│ │ (Final Report)  │
 └─────────┘ └─────────────────┘
 ```
 
-## 前提条件
+## Prerequisites
 
-- **OS**: Ubuntu 22.04 以上
-- **Python**: 3.10 以上
-- **Docker**: docker および docker-compose
-- **GPU**: VRAM 16GB 推奨（Ollama用）
+- **OS**: Ubuntu 22.04 or later
+- **Python**: 3.10 or later
+- **Docker**: docker and docker-compose
+- **GPU**: 16GB VRAM recommended (for Ollama)
 
-## インストール
+## Installation
 
-詳細な手順は `doc/setup` を参照してください。
+For detailed instructions, please refer to `doc/setup`.
 
-1.  **リポジトリクローン**:
+1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/yasutoshi-lab/Hermes.git
-    cd Hermes
+    git clone https://github.com/Echo-Computing/hermes-echo.git
+    cd hermes-echo
     ```
-2.  **依存関係インストール**:
+2.  **Install dependencies**:
     ```bash
     uv sync
     uv pip install -e .
     ```
-3.  **Ollama と Hermes のセットアップ**:
-    `doc/setup` のガイドに従って、OllamaのインストールとHermesの初期設定を行ってください。
+3.  **Set up Ollama and Hermes**:
+    Please follow the guide in `doc/setup` to install Ollama and perform the initial setup for Hermes.
 
-## 基本的な使用例
+## Basic Usage Examples
 
-コマンドの詳細は `doc/command` を参照してください。
+For details on commands, please refer to `doc/command`.
 
 ```bash
-# 即時実行
-hermes run --prompt "量子コンピュータの暗号化への影響を調査"
+# Immediate execution
+hermes run --prompt "Investigate the impact of quantum computers on encryption"
 
-# タスク登録
-hermes task --add "AI倫理の最新動向"
+# Register a task
+hermes task --add "Latest trends in AI ethics"
 
-# タスク一覧表示
+# Display task list
 hermes task --list
 
-# タスク実行
+# Execute a task
 hermes run --task-id 2025-0001
 ```
 
-## ディレクトリ構造
+
+### Echo agent (this fork)
+```bash
+# Interactive chat agent with tools, learning, and memory
+hermes echo
+
+# Collaborative multi-agent research mode
+hermes echo --research "Your research question"
+```
+
+## Directory Structure
 
 ```
 ~/.hermes/
-├── config.yaml              # 設定ファイル
-├── docker-compose.yaml      # Docker設定
-├── cache/                   # キャッシュ
-├── task/                    # タスク定義
-├── log/                     # 通常ログ
-├── debug_log/               # デバッグログ
-├── history/                 # 実行履歴とレポート
-└── searxng/                 # SearxNG設定
+├── config.yaml              # Configuration file
+├── docker-compose.yaml      # Docker settings
+├── cache/                   # Cache
+├── task/                    # Task definitions
+├── log/                     # Normal logs
+├── debug_log/               # Debug logs
+├── history/                 # Execution history and reports
+└── searxng/                 # SearxNG settings
 ```
 
-## 設定
+## Configuration
 
-設定ファイルの詳細は `doc/config/config.md` を参照してください。
+For details on the configuration file, please refer to `doc/config/config.md`.
 
-## ライセンス
+## License
 
 MIT License
 
-## 貢献
+## Contributing
 
-Issue や Pull Request を歓迎します！
-詳細は `CONTRIBUTING.md` を参照してください。
+We welcome Issues and Pull Requests!
+Please see `CONTRIBUTING.md` for details.
