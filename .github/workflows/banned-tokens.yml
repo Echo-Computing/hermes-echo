@@ -1,0 +1,32 @@
+# Banned-token guard for the PUBLIC hermes-echo tree (server-side defense-in-depth).
+# Fails any push or pull request whose checked-out content contains the banned
+# offensive/off-private tokens. This is the enforced layer; the local .githooks/pre-push
+# is the immediate layer for maintainers. The pattern is base64-encoded so this file
+# contains no banned tokens (passes hygiene + does not self-trigger).
+name: banned-tokens
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Banned-token scan
+        run: |
+          set -eu
+          PAT_B64='cGhhbnRvbXwoPzwhW2hIXSl0dHB8b25pb258YndyYXB8Y29udGludXVtfGJlYWNvbnxzdHJpeHxzY2FyZnxyZWNvbig/IVthLXpdKXxjMlstX10='
+          PAT=$(printf '%s' "$PAT_B64" | base64 -d)
+          # git grep exits 0 if a match is found, 1 if none.
+          if git grep -In -i -P "$PAT" -- .; then
+            echo "::error::Banned offensive/off-private tokens detected in the public tree (see log above)."
+            exit 1
+          fi
+          echo "Clean: no banned tokens found."

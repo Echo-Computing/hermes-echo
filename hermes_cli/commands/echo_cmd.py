@@ -18,7 +18,16 @@ from hermes_cli.persistence.config_repository import ConfigRepository
 @click.option("--research", "-r", "research_prompt", default=None, help="Collaborative multi-agent research mode")
 @click.option("--rounds", "research_rounds", type=int, default=None, help="Max research rounds (override config)")
 @click.option("--debates", "research_debates", type=int, default=None, help="Max debates per round (override config)")
-def echo(model, prompt, yes, show_config, research_prompt, research_rounds, research_debates):
+@click.option("--latin", "latin", is_flag=True,
+              help="Latin tutor mode: a dedicated paedagogus agent sandboxed from the "
+                   "main Echo agent. Loads the paedagogus persona + the "
+                   "mastery ledger from the configured Latin workspace (HERMES_LATIN_DIR "
+                   "env var; defaults to the standard latin/ dir); a deterministic core "
+                   "(FSRS-6 + LatinCy parse gate + macron lexicon + static paradigms) "
+                   "is the source of truth for correctness-critical ops. Use /translate "
+                   "in-session for a per-turn translation escape hatch.")
+def echo(model, prompt, yes, show_config, research_prompt, research_rounds, research_debates,
+         latin):
     """Launch the Echo agent in interactive chat or collaborative research mode."""
     config_repo = ConfigRepository()
     hermes_config = config_repo.load()
@@ -61,9 +70,11 @@ def echo(model, prompt, yes, show_config, research_prompt, research_rounds, rese
     click.echo("  Memory: {}".format(hermes_config.echo.memory_dir))
     click.echo("  Type /help for commands, /exit to quit")
     click.echo("  Use --research for multi-agent deep research")
+    if latin:
+        click.echo("  Latin tutor mode: ON (paedagogus; deterministic core = source of truth)")
     click.echo("")
 
-    graph = create_echo_graph()
+    graph = create_echo_graph(latin=latin)
 
     # Build learning config dict from EchoConfig
     learning_config = {
@@ -82,10 +93,30 @@ def echo(model, prompt, yes, show_config, research_prompt, research_rounds, rese
             "model": agent_model,
             "max_tokens": hermes_config.ollama.max_tokens,
             "temperature": hermes_config.ollama.temperature,
+            # C-reliability (2026-07-13): wire ollama.retry into the echo path so
+            # call_llm can retry on an empty/transient LLM response. Previously only
+            # the research graph (echo_cmd.py:428) passed retry; the echo path omitted
+            # it, so call_llm's config.get("retry", ...) always fell back to the
+            # default. ollama.retry is an int (see test fake test_seam_latin.py:716).
+            "retry": hermes_config.ollama.retry,
             "max_tool_calls": hermes_config.echo.max_tool_calls,
             "context_messages": hermes_config.echo.context_messages,
             "shell_timeout": hermes_config.echo.shell_timeout,
             "confirm_destructive": hermes_config.echo.confirm_destructive and not yes,
+            # Orchestrator-injection-cluster Commit 3 (2026-07-06 red-team): the
+            # operator confirmer for the destructive-tool gate in execute_tools.
+            # Interactive REPL (no --prompt) -> a click.confirm prompt (default
+            # No); --prompt headless single-shot -> absent (None) so execute_tools
+            # refuses destructive tools fail-closed (cannot ask the operator mid-
+            # graph.invoke -> don't do destructive; pass --yes to allow). --yes
+            # sets confirm_destructive=False above so the gate is skipped and the
+            # confirmer is never called. The callable receives (tool_name, params)
+            # only — never state — and is operator-supplied, never LLM-supplied.
+            "confirmer": None if prompt else (
+                lambda name, params: click.confirm(
+                    "  destructive: run {}?".format(name), default=False
+                )
+            ),
             "memory_dir": str(hermes_config.echo.memory_dir),
             "history_dir": str(hermes_config.echo.history_dir),
             "learning": learning_config,
@@ -137,6 +168,9 @@ def echo(model, prompt, yes, show_config, research_prompt, research_rounds, rese
                 click.echo("")
             except Exception as e:
                 logger.error("Agent error during exit: {}".format(e))
+            finally:
+                # F5: consume the per-turn /translate flag on this branch too.
+                state["translate_permitted"] = False
             click.echo("Session saved. Goodbye.")
             break
 
@@ -161,6 +195,13 @@ def echo(model, prompt, yes, show_config, research_prompt, research_rounds, rese
                 logger.error("Agent error: {}".format(e))
                 click.echo("Error: {}".format(e))
                 click.echo("")
+            finally:
+                # /translate escape hatch is per-turn (2026-07-13 red-team F5):
+                # consume the flag on every graph.invoke branch, not just the
+                # normal-message branch, so a bare /translate cannot leak the
+                # flag into a subsequent /idea turn (which would render "YES —
+                # translation allowed" in the latin_state block mid-ideation).
+                state["translate_permitted"] = False
 
         elif cmd["command"] == "idea_save":
             state["user_input"] = user_input
@@ -181,6 +222,9 @@ def echo(model, prompt, yes, show_config, research_prompt, research_rounds, rese
                 logger.error("Agent error: {}".format(e))
                 click.echo("Error: {}".format(e))
                 click.echo("")
+            finally:
+                # F5: consume the per-turn /translate flag on this branch too.
+                state["translate_permitted"] = False
 
         elif user_input == "/help":
             click.echo("Session commands:")
@@ -213,6 +257,38 @@ def echo(model, prompt, yes, show_config, research_prompt, research_rounds, rese
             click.echo("")
             continue
 
+        elif user_input.startswith("/translate"):
+            # /translate — per-turn Latin-first escape hatch (DESIGN.md §7.1/§8.3).
+            # A user-typed override (NOT an LLM-decided tool param): sets
+            # state['translate_permitted'] so the latin builder + tutor tools
+            # permit translation for this one turn. With text ("/translate <x>")
+            # the text is translated this turn; bare "/translate" arms the flag
+            # for the next normal message. The flag resets after the invoke.
+            if not latin:
+                click.echo("  /translate is only available in --latin mode.")
+                click.echo("")
+                continue
+            text = user_input[len("/translate"):].strip()
+            state["translate_permitted"] = True
+            if not text:
+                click.echo("  Translate armed — your next message will be translated (one turn).")
+                click.echo("")
+                continue
+            state["user_input"] = text
+            try:
+                final_state = graph.invoke(state)
+                response = final_state.get("response", "(no response)")
+                click.echo("")
+                click.echo("  hermes > {}".format(response))
+                click.echo("")
+                state["messages"] = final_state.get("messages", [])
+            except Exception as e:
+                logger.error("Agent error during /translate: {}".format(e))
+                click.echo("Error: {}".format(e))
+                click.echo("")
+            finally:
+                state["translate_permitted"] = False
+
         else:
             # Normal message — maintain ideation state
             state["user_input"] = user_input
@@ -233,6 +309,63 @@ def echo(model, prompt, yes, show_config, research_prompt, research_rounds, rese
                 logger.error("Agent error: {}".format(e))
                 click.echo("Error: {}".format(e))
                 click.echo("")
+            finally:
+                # /translate (bare) arms the flag for exactly one normal turn;
+                # consume it here so the escape hatch is per-turn, not sticky.
+                state["translate_permitted"] = False
+
+
+def _research_recursion_limit(max_rounds):
+    """Scale the LangGraph recursion_limit with max_rounds (P0-2, 2026-07-06
+    red-team, finding research-recursion-limit-vs-max-rounds).
+
+    The upstream hardcoded ``recursion_limit=100`` independent of max_rounds,
+    so a long run (~8 graph nodes/round) exhausted the budget mid-round and
+    raised GraphRecursionError -> the whole run's report was lost (the except
+    block logged + returned WITHOUT saving). 12 nodes/round of headroom + 20
+    for the final aggregation nodes keeps the recursion limit from being the
+    binding constraint (the graph's own should_continue_research / convergence
+    ends the run first). max_rounds==0 is the unlimited sentinel
+    (research/graph.py supervisor_router treats 0=unlimited); cap it at 1000
+    as a runaway backstop rather than running unbounded.
+    """
+    if max_rounds is None:
+        return 120
+    if max_rounds <= 0:
+        return 1000
+    return max(max_rounds, 1) * 12 + 20
+
+
+def _dump_partial_research_state(partial_state, research_prompt, agent_model, reason):
+    """Best-effort dump of whatever graph state exists when a run crashes mid-
+    stream (P0-2). No checkpointer is used in the research graph (leak-probe
+    arm S), so without this a GraphRecursionError / node crash loses the whole
+    run. ``partial_state`` is the last full state dict yielded by astream before
+    the failure. Writes ``research-<ts>-CRASH.json`` alongside normal reports."""
+    try:
+        from pathlib import Path
+        from datetime import datetime
+        import json
+        history_dir = Path.home() / ".hermes" / "history"
+        history_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+        crash_path = history_dir / "research-{}-CRASH.json".format(ts)
+        payload = {
+            "goal": research_prompt,
+            "model": agent_model,
+            "partial": True,
+            "crash_reason": str(reason)[:500],
+            "hypotheses": partial_state.get("hypotheses", []) if isinstance(partial_state, dict) else [],
+            "tournament_results": partial_state.get("tournament_results", []) if isinstance(partial_state, dict) else [],
+            "code_execution_results": partial_state.get("code_execution_results", []) if isinstance(partial_state, dict) else [],
+            "search_results": partial_state.get("search_results", []) if isinstance(partial_state, dict) else [],
+            "errors": partial_state.get("errors", []) if isinstance(partial_state, dict) else [],
+            "final_report": partial_state.get("final_report", {}) if isinstance(partial_state, dict) else {},
+        }
+        crash_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+        click.echo("  Partial state saved (crash): {}".format(crash_path))
+    except Exception as dump_err:  # noqa: BLE001
+        logger.warning("Could not dump partial research state: {}".format(dump_err))
 
 
 def _run_research(hermes_config, research_prompt, model=None, rounds_override=None, debates_override=None):
@@ -257,6 +390,14 @@ def _run_research(hermes_config, research_prompt, model=None, rounds_override=No
         "parallel_instances": hermes_config.echo.research.parallel_instances,
         "code_timeout": hermes_config.echo.research.code_timeout,
         "search_results_per_query": hermes_config.echo.research.search_results_per_query,
+        # Step 4 autoresearch: constrained-mutation mode (opt-in, default off).
+        # {} when the config attribute is absent -> the code_execution node
+        # reads research_config['constrained_mode'] as {} -> constrained_on=
+        # False -> the existing CODE_GEN_SYSTEM_PROMPT + SANDBOX_TIMEOUT path
+        # (no behavior change for normal research runs). A user opts in by
+        # setting ``constrained_mode`` on their echo.research config as a dict
+        # with ``contract``/``per_mutation_budget``/``outer_kill`` keys.
+        "constrained_mode": getattr(hermes_config.echo.research, "constrained_mode", {}),
     }
 
     initial_state = {
@@ -289,8 +430,32 @@ def _run_research(hermes_config, research_prompt, model=None, rounds_override=No
         ))
         click.echo("")
 
-        # Run the graph (async)
-        result = asyncio.run(graph.ainvoke(initial_state, {"recursion_limit": 100}))
+        # Run the graph (async). P0-2: stream instead of ainvoke so a
+        # GraphRecursionError (or any node crash) still leaves the last full
+        # state dict yielded, which we save as a partial report instead of
+        # data-lossing the whole run. astream default stream_mode="values"
+        # yields the full state after each node.
+        recursion_limit = _research_recursion_limit(research_config["max_rounds"])
+        truncated = False
+        partial_state = initial_state
+
+        async def _stream_graph():
+            nonlocal partial_state
+            async for chunk in graph.astream(initial_state, {"recursion_limit": recursion_limit}):
+                if isinstance(chunk, dict):
+                    partial_state = chunk
+
+        try:
+            asyncio.run(_stream_graph())
+        except Exception as _stream_err:  # noqa: BLE001
+            # GraphRecursionError (a RecursionError subclass) or a node crash:
+            # partial_state already holds the last yielded state. Mark
+            # truncated and fall through to the normal display/save path so
+            # the partial report is preserved.
+            truncated = True
+            logger.warning("Research graph stopped mid-run ({}); saving partial state.".format(_stream_err))
+
+        result = partial_state
 
         final_report = result.get("final_report", {})
         hypotheses = result.get("hypotheses", [])
@@ -298,8 +463,12 @@ def _run_research(hermes_config, research_prompt, model=None, rounds_override=No
 
         # Display results
         click.echo("=" * 60)
-        click.echo("  RESEARCH COMPLETE")
+        click.echo("  RESEARCH COMPLETE" if not truncated else "  RESEARCH COMPLETE (PARTIAL)")
         click.echo("=" * 60)
+        if truncated:
+            click.echo("  NOTE: graph stopped mid-run (recursion limit or crash);")
+            click.echo("        saved partial state ({} hypotheses, {} errors).".format(
+                len(hypotheses), len(errors)))
         click.echo("")
 
         leaderboard = final_report.get("leaderboard", [])
@@ -351,6 +520,7 @@ def _run_research(hermes_config, research_prompt, model=None, rounds_override=No
             "config": research_config,
             "report": final_report,
             "errors": errors,
+            "partial": truncated,
         }
         report_path.write_text(json.dumps(report_data, indent=2, ensure_ascii=False), encoding="utf-8")
 
@@ -369,6 +539,14 @@ def _run_research(hermes_config, research_prompt, model=None, rounds_override=No
         import traceback
         logger.error("Research error: {}".format(e))
         logger.error("Traceback: {}".format(traceback.format_exc()))
+        # P0-2: if we got far enough to have a partial graph state, dump it
+        # before failing so a crash in display/save does not lose the run.
+        try:
+            ps = locals().get("partial_state", None)
+            if ps is not None:
+                _dump_partial_research_state(ps, research_prompt, agent_model, e)
+        except Exception:  # noqa: BLE001
+            pass
         click.echo("")
         click.echo("  Research failed: {}".format(e))
         click.echo("")

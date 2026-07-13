@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hermes-cli"
-version = "0.2.1"
+version = "0.3.0"
 description = "ローカルLLM情報収集エージェント"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -35,6 +35,18 @@ dev = [
     "ruff>=0.1.9",
     "mypy>=1.8.0",
 ]
+
+graph = [
+    # Graphify (Step 2, 2026-07-07) — optional code-graph deps. NOT in core
+    # dependencies so a minimal install (CI, the public codegraph-echo fork,
+    # /usr/bin/python3) does not require native tree-sitter wheels. graph_tools.py
+    # wraps these imports in try/except + degrades to a dormant install
+    # hermes-cli[graph] message when missing (D-1, 4-lens re-verify).
+    "tree-sitter>=0.26",
+    "tree-sitter-python>=0.25",
+    "networkx>=3.4",
+]
+
 
 [project.scripts]
 hermes = "hermes_cli.main:cli"

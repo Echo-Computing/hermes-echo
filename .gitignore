@@ -73,3 +73,7 @@ uv.lock
 .coverage
 htmlcov/
 .tox/
+
+# seam deploy backups (not source)
+.pre-p1b-backup/
+.pre-seam-backup/

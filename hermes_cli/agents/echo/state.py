@@ -48,3 +48,14 @@ class EchoState(TypedDict, total=False):
     pending_session_action: Optional[str]  # "summarize" on /exit, else None
     auto_memory_count: int  # Tracks auto-memory saves this session
     should_continue: bool
+
+    # --- Latin tutor module (--latin mode, 2026-07-12). Additive, optional;
+    # only set when the graph is built with --latin. load_latin_state (the graph
+    # node rewired between process_input and call_llm) reads the non-protected
+    # latin ledger + sets latin_state; build_latin_system_prompt renders it.
+    # translate_permitted is a per-turn /translate flag set in the echo_cmd REPL
+    # loop (a user-typed override, NOT an LLM-decided tool param). Neither key
+    # is a banned affect field (assert_state_keys_clean_for_prompt permits
+    # them). Absent on plain (non-latin) graphs. ---
+    latin_state: Optional[Dict[str, Any]]
+    translate_permitted: Optional[bool]

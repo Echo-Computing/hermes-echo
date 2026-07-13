@@ -1,13 +1,27 @@
-"""Code Execution agent (Finch-style) — writes and executes Python to analyze data.
+"""Code Execution agent (Finch-style) -- writes and executes Python to analyze data.
 
-Launches multiple parallel instances with consensus voting.
-Adapted from Robin: 3 parallel instances (not 8) for local execution.
+Launches multiple independent instances (run SEQUENTIALLY, one after another,
+under the same per-instance compute slice) with consensus voting.
+Adapted from Robin: 3 instances (not 8) for local execution.
+
+SEAM OVERRIDE of the upstream hermes_cli/agents/echo/research/nodes/
+code_execution.py. The upstream version ran LLM-authored Python via
+``subprocess.run(["python3","-I", script_path])`` with NO FS masks, NO net
+isolation, and an import blacklist that OMITS ``os`` -- so ``import os;
+os.system(...)`` could read protected stores, exfiltrate over the network, and
+``open(...,'w')`` the guard source files. This override runs the code via
+``python3 -I -`` (isolated mode, stdin pipe) with an expanded import blacklist
+(BLOCKED_MODULES) prepended as a guard hook. The mount-namespace ceiling is not
+in the public build; the import guard + isolated mode are the floor. The
+CODE_GEN_SYSTEM_PROMPT is corrected: the upstream falsely told the LLM there
+was no network/FS access while nothing enforced that.
 """
 
 import subprocess
 import tempfile
 import os
 import asyncio
+import time
 from pathlib import Path
 from typing import List, Dict, Any
 from loguru import logger
@@ -15,6 +29,10 @@ from loguru import logger
 from hermes_cli.agents.echo.research.state import ResearchState
 from hermes_cli.agents.echo.research.models import CodeExecutionResult, ConsensusResult
 from hermes_cli.tools.ollama_client import OllamaClient
+# Step 4 autoresearch: constrained-mutation-mode contract. Imported here (not
+# at the top of the module) ONLY because it is a seam-sibling; load_contract()
+# is a pure constant return, no I/O, so this import adds no exfil surface.
+from hermes_cli.agents.echo.research.contract_loader import load_contract
 
 
 # Sandbox restrictions
@@ -26,16 +44,33 @@ ALLOWED_IMPORTS = {
     "typing", "dataclasses", "functools", "operator",
     "time", "random",
 }
-BLOCKED_MODULES = ["subprocess", "socket", "requests", "ctypes", "shutil"]
+# Defense-in-depth import blacklist. The upstream omitted the process /
+# async-spawn modules, so ``import subprocess`` (and ``asyncio.subprocess``,
+# ``multiprocessing``, ``pty``) let sandboxed code spawn helper processes.
+# The import guard hook is the floor boundary in the public build (the
+# mount-namespace ceiling is not shipped); it must NOT be relied on as the
+# sole boundary in a deployment that wires private stores.
+#
+# IMPORTANT: the import hook intercepts TRANSITIVE imports, so we CANNOT block
+# modules that numpy/pandas/scipy/matplotlib import during their own init.
+# ``os``, ``signal``, ``fcntl`` and ``builtins`` are all imported
+# transitively by the allowed libs (e.g. numpy/__init__.py does ``import os``)
+# -- blocking them would break ``import numpy`` itself. They are deliberately
+# NOT listed. Only process-spawn modules that the allowed libs do NOT pull in
+# transitively are blocked here.
+BLOCKED_MODULES = [
+    "subprocess", "socket", "requests", "ctypes", "shutil",
+    "pty", "multiprocessing", "asyncio",
+]
 
 CODE_GEN_SYSTEM_PROMPT = """You are the Code Execution Agent (Finch) in a scientific research system (inspired by the Robin multi-agent system from Nature).
 
 Your job is to write Python code that analyzes data to test a hypothesis.
 The code will be executed in a sandbox with:
-- Python 3 (isolated mode)
+- Python 3 (isolated mode, -I flag) with an import guard
+- No network libraries (socket/requests blocked by import guard)
+- No subprocess spawning (subprocess/multiprocessing/pty blocked)
 - Allowed imports: {allowed_imports}
-- No network access
-- No file system access outside a temp directory
 - {timeout}s timeout
 
 Write clean, well-structured analysis code that:
@@ -53,13 +88,35 @@ Return JSON:
 
 
 async def run_code_execution(state: ResearchState) -> ResearchState:
-    """Code Execution node: run Finch-style parallel analysis on testable hypotheses."""
+    """Code Execution node: run Finch-style sequential multi-instance analysis on testable hypotheses."""
 
     config = state.get("config", {})
     ollama_config = config.get("ollama", {})
     research_config = config.get("research", {})
 
     num_instances = research_config.get("parallel_instances", 3)
+
+    # Step 4 autoresearch: constrained-mutation mode (opt-in, default off).
+    # When ``constrained_mode.contract == "autoresearch_mode"`` the system
+    # prompt is swapped for the governed-mutation contract; per-mutation
+    # wall-clock budget + a hard outer kill bound the batch; equal-compute-
+    # slice = the same timeout= value per sequential instance call. The keep/
+    # discard DECISION is NOT made here -- it is the governance gauntlet's
+    # composite (reflection+consensus+ranking+integrity) at format_report. The
+    # ``proposal`` dict emitted below is INFORMATIONAL and overwritten by the
+    # gauntlet (Goodhart defense: no scalar metric decides keep).
+    constrained = research_config.get("constrained_mode", {}) or {}
+    per_mutation_budget = int(constrained.get("per_mutation_budget", SANDBOX_TIMEOUT))
+    # The outer_kill default is scaled to the configured budget so a legitimate
+    # large per_mutation_budget cannot silently trigger premature outer-kill of
+    # later instances (instances run SEQUENTIALLY, so the worst-case batch time
+    # is num_instances * per_mutation_budget; +30s slack for LLM + overhead).
+    # An explicit outer_kill in config still wins. Default floor of 10*
+    # SANDBOX_TIMEOUT preserves the unconstrained-path behavior (huge, never
+    # reached) when the budget is the module default.
+    _default_outer_kill = max(10 * SANDBOX_TIMEOUT, num_instances * per_mutation_budget + 30)
+    outer_kill = float(constrained.get("outer_kill", _default_outer_kill))
+    constrained_on = bool(constrained) and constrained.get("contract") == "autoresearch_mode"
 
     hypotheses = state.get("hypotheses", [])
     # Focus on top-ranked hypotheses (by ELO) for code analysis
@@ -77,7 +134,7 @@ async def run_code_execution(state: ResearchState) -> ResearchState:
     top_hypotheses = alive[:2]
 
     logger.info(
-        "CodeExecution: analyzing {} hypotheses with {} parallel instances each".format(
+        "CodeExecution: analyzing {} hypotheses with {} instances each".format(
             len(top_hypotheses), num_instances
         ),
         extra={"category": "RESEARCH"},
@@ -95,12 +152,23 @@ async def run_code_execution(state: ResearchState) -> ResearchState:
 
     try:
         for hyp in top_hypotheses:
-            # --- Generate code from each parallel instance ---
+            # --- Generate code from each instance (sequential, equal compute slice) ---
             instances = []
-            system_prompt = CODE_GEN_SYSTEM_PROMPT.format(
-                allowed_imports=", ".join(sorted(ALLOWED_IMPORTS)),
-                timeout=SANDBOX_TIMEOUT,
-            )
+            # Step 4: constrained mode swaps the system prompt for the
+            # governed-mutation contract (still produces the SAME JSON return
+            # shape, so the rest of the node is unchanged). The timeout
+            # placeholder reflects the per-mutation budget, not the module
+            # default -- so the LLM knows the real hard bound it is under.
+            if constrained_on:
+                system_prompt = load_contract().format(
+                    allowed_imports=", ".join(sorted(ALLOWED_IMPORTS)),
+                    timeout=per_mutation_budget,
+                )
+            else:
+                system_prompt = CODE_GEN_SYSTEM_PROMPT.format(
+                    allowed_imports=", ".join(sorted(ALLOWED_IMPORTS)),
+                    timeout=SANDBOX_TIMEOUT,
+                )
 
             for i in range(num_instances):
                 prompt = (
@@ -109,7 +177,7 @@ async def run_code_execution(state: ResearchState) -> ResearchState:
                     "**Description:** {desc}\n"
                     "**Mechanism:** {mechanism}\n\n"
                     "Generate analysis code (instance {instance_num}/{total}). "
-                    "Approach the problem independently — use your own statistical methods.".format(
+                    "Approach the problem independently -- use your own statistical methods.".format(
                         title=hyp.get("title", ""),
                         desc=hyp.get("description", ""),
                         mechanism=hyp.get("mechanism", "Not specified"),
@@ -158,9 +226,38 @@ async def run_code_execution(state: ResearchState) -> ResearchState:
                     })
 
             # --- Execute each instance in sandbox ---
+            # Step 4: constrained mode imposes a hard OUTER kill across the
+            # whole instance batch (a wall-clock budget per hypothesis, not
+            # just per instance). Equal-compute-slice = the same per-instance
+            # timeout= value; the outer kill bounds the SUM. A batch that
+            # blows the outer kill stops; remaining instances are recorded as
+            # timed-out (crash) -- NOT run. The default outer_kill is scaled to
+            # the configured per_mutation_budget (max(10*SANDBOX_TIMEOUT,
+            # num_instances*budget+30)) so a large budget does not prematurely
+            # kill later instances; an explicit outer_kill in config wins.
+            # NOTE: outer_kill is a per-batch START gate (checked at loop top
+            # only), NOT a hard mid-instance wall-clock kill.
             execution_results = []
+            deadline = time.monotonic() + outer_kill
             for inst in instances:
-                result = _execute_sandboxed(inst["code"], inst["instance_id"])
+                if time.monotonic() > deadline:
+                    # outer kill: mark remaining instances as timed-out crash
+                    # results so the gauntlet sees them as crash (not silent
+                    # skip). The keep/discard decision still runs downstream.
+                    execution_results.append(CodeExecutionResult(
+                        instance_id=inst["instance_id"],
+                        code=inst["code"],
+                        stdout="",
+                        stderr="outer kill: batch exceeded {}s wall-clock budget".format(outer_kill),
+                        exit_code=-1,
+                        success=False,
+                        findings="",
+                    ))
+                    continue
+                result = _execute_sandboxed(
+                    inst["code"], inst["instance_id"],
+                    timeout=per_mutation_budget if constrained_on else SANDBOX_TIMEOUT,
+                )
                 execution_results.append(result)
 
             # --- Analyze results with LLM to extract findings ---
@@ -205,10 +302,28 @@ async def run_code_execution(state: ResearchState) -> ResearchState:
                 "total_instances": consensus.total_instances,
                 "majority_finding": consensus.majority_finding,
                 "verdict": consensus.verdict,
+                # Step 4: INFORMATIONAL keep/discard PROPOSAL. This is NOT the
+                # keep/discard decision -- the governance gauntlet
+                # (reflection+consensus+ranking+integrity at format_report)
+                # makes that decision and OVERWRITES this proposal. Recorded
+                # here so the provenance ledger's governance_verdict can cite
+                # what the code-execution layer proposed vs what the gauntlet
+                # decided (Goodhart observability: the metric the LLM cites is
+                # not the metric that decides keep).
+                "proposal": {
+                    "action": "keep" if consensus.consensus_reached else "discard",
+                    "budget_used": per_mutation_budget if constrained_on else SANDBOX_TIMEOUT,
+                    "constrained_mode": constrained_on,
+                    "reason": "consensus {} ({} of {} instances)".format(
+                        consensus.verdict,
+                        consensus.agreeing_instances,
+                        consensus.total_instances,
+                    ),
+                },
             })
 
             logger.info(
-                "CodeExecution: hypothesis '{}' — consensus: {} ({}/{})".format(
+                "CodeExecution: hypothesis '{}' -- consensus: {} ({}/{})".format(
                     hyp.get("title", "")[:50],
                     consensus.verdict,
                     consensus.agreeing_instances,
@@ -231,14 +346,26 @@ async def run_code_execution(state: ResearchState) -> ResearchState:
     return state
 
 
-def _execute_sandboxed(code: str, instance_id: int) -> CodeExecutionResult:
-    """Execute Python code in a restricted sandbox subprocess."""
+def _execute_sandboxed(code: str, instance_id: int, timeout: int = SANDBOX_TIMEOUT) -> CodeExecutionResult:
+    """Execute Python code in a guarded subprocess.
+
+    Runs the LLM-authored code via ``python3 -I -`` (isolated mode, piped over
+    stdin so no temp script file is written to the host FS). A defense-in-depth
+    import blacklist (BLOCKED_MODULES) is prepended as a guard hook; the import
+    guard is the floor boundary in the public build (the mount-namespace
+    ceiling is not shipped). ``python3 -I`` (isolated mode) ignores
+    PYTHONPATH/user-site so system-installed numpy/pandas/scipy are importable
+    from the standard interpreter path. The import guard intercepts
+    transitive imports, blocking process-spawn + network modules that the
+    allowed libs do NOT pull in transitively.
+    """
 
     blocked_list = sorted(BLOCKED_MODULES)
 
     # Build guard using repr() to avoid format-string collisions
     guard_lines = [
-        "# Sandbox import guard (blacklist-only approach)",
+        "# Sandbox import guard (defense-in-depth blacklist; the import hook",
+        "# is the floor boundary in the public build).",
         "import builtins",
         "_original_import = builtins.__import__",
         "",
@@ -256,22 +383,19 @@ def _execute_sandboxed(code: str, instance_id: int) -> CodeExecutionResult:
     ]
     guard = "\n".join(guard_lines)
 
-    # Create a temporary script file
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".py", delete=False, prefix="hermes_research_"
-    ) as f:
-        f.write(guard)
-        f.write("\n")
-        f.write(code)
-        script_path = f.name
+    # Pipe the guard + LLM-authored code to python3 -I - over stdin so no temp
+    # script file is written to the host FS. python3 -I (isolated mode) ignores
+    # PYTHONPATH/user-site; system-installed numpy/pandas/scipy are importable
+    # from the standard interpreter path.
+    stdin_payload = guard + "\n" + code
 
     try:
         result = subprocess.run(
-            ["python3", "-I", script_path],
+            ["python3", "-I", "-"],
+            input=stdin_payload,
             capture_output=True,
             text=True,
-            timeout=SANDBOX_TIMEOUT,
-            env={"PYTHONPATH": "", "HOME": tempfile.gettempdir()},
+            timeout=timeout,
         )
 
         return CodeExecutionResult(
@@ -288,7 +412,7 @@ def _execute_sandboxed(code: str, instance_id: int) -> CodeExecutionResult:
             instance_id=instance_id,
             code=code,
             stdout="",
-            stderr="Execution timed out after {} seconds".format(SANDBOX_TIMEOUT),
+            stderr="Execution timed out after {} seconds".format(timeout),
             exit_code=-1,
             success=False,
             findings="",
@@ -303,17 +427,13 @@ def _execute_sandboxed(code: str, instance_id: int) -> CodeExecutionResult:
             success=False,
             findings="",
         )
-    finally:
-        try:
-            os.unlink(script_path)
-        except Exception:
-            pass
 
 
 def _compute_consensus(results: List[CodeExecutionResult]) -> ConsensusResult:
-    """Compute consensus across parallel code execution instances.
+    """Compute consensus across code execution instances.
 
-    Majority (>= 50%) must agree for consensus to be reached.
+    A strict majority (> 50%, i.e. threshold = total // 2 + 1) must agree for
+    consensus to be reached.
     """
     total = len(results)
     successful = [r for r in results if r.success]
