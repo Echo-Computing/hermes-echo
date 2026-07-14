@@ -1,11 +1,12 @@
 """Main CLI entry point for Hermes"""
 
 import click
+from hermes_cli import __version__
 from hermes_cli.commands import init, task, run, log, history, echo
 
 
 @click.group()
-@click.version_option(version="0.1.0")
+@click.version_option(version=__version__)
 def cli():
     """Hermes - ローカルLLM情報収集エージェント"""
     pass

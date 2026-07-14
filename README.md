@@ -57,7 +57,16 @@ The Latin tutor is a **deterministic core** with the LLM confined to rendering a
 - **static paradigm tables** (declension / conjugation / case-use) are the source of truth for the forms themselves — the LLM only renders the prompt and declines a form the tables say exists; and
 - a `/translate` escape hatch drops into free translation when the learner wants out of the drill.
 
-Set `HERMES_LATIN_DIR` to point the tutor at a directory of paradigm and lexicon data.
+Set `HERMES_LATIN_DIR` to point the tutor at a directory of paradigm and lexicon data (power-user override).
+
+**Bundled data (v0.3.1).** A read-only data subset ships in-tree at `hermes_cli/agents/echo/latin_data/` so the tutor is usable out of the box — no `HERMES_LATIN_DIR` required:
+
+- `paradigm_tables.json` — the 88 conjugation + 8 declension tables (**CC BY-SA 3.0**: the macronized conjugation cells are transcribed from the English Wiktionary conjugation tables; the declension tables follow Allen & Greenough *New Latin Grammar* (1903), public domain; see `latin_data/DATA_LICENSES.md`);
+- `proper_nouns.json` — a small proper-noun allowlist (factual; MIT);
+- `macron_lexicon.json` — ~987 macronized lemmas, **CC BY-SA 3.0** (the ~1,000-lemma DCC Latin Core Vocabulary subset, attributed to Dickinson College Commentaries; see `latin_data/DATA_LICENSES.md`);
+- `paedagogus.md` — the tutor persona (MIT).
+
+The bundled data is a **read-only floor** for the three data files + the persona. The **writable ledger** (your SRS state) always lives at `HERMES_LATIN_DIR/ledger.json` (default `~/.hermes/latin/ledger.json`) — never in the bundled dir. When `HERMES_LATIN_DIR` is set, your dir is respected exactly (the bundled data does not shadow it); when it is unset, the tutor falls back to `~/.hermes/latin` then the bundled data. See `latin_data/DATA_LICENSES.md` for per-file licenses + DCC attribution.
 
 ## 5. Collaborative research (`hermes echo --research`)
 
@@ -96,6 +105,7 @@ Requirements:
 - **Ollama** running on `localhost:11434` with a model pulled (e.g. `ollama pull ...`)
 - (optional) `pip install -e ".[graph]"` for the tree-sitter code-graph tool (`tree-sitter`, `tree-sitter-python`, `networkx`)
 - (optional) `python -m spacy download la_core_web_lg` for the Latin tutor's parse gate
+- (optional) **SearxNG** for the `search_web` tool — a local instance at `http://localhost:8080` (the default; configurable via the search config). If SearxNG isn't running, `search_web` reports unavailability rather than failing. The upstream `hermes init` workspace ships a `docker-compose.yaml` that runs SearxNG + Redis.
 
 ## 8. Usage
 
@@ -195,13 +205,29 @@ git config core.hooksPath .githooks
 - the dark-web OSINT transport;
 - ToolPlugin extension auto-discovery.
 
+### v0.3.1 — bundled Latin data + learning-loop fence + tool refinements
+
+**NEW:**
+
+- **bundled Latin data** — `paradigm_tables.json` (**CC BY-SA 3.0**, Wiktionary conjugations + A&G public-domain declensions) + `proper_nouns.json` (MIT) + `macron_lexicon.json` (**CC BY-SA 3.0**, DCC Latin Core Vocabulary, attributed) + a public `paedagogus.md` persona now ship in-tree at `hermes_cli/agents/echo/latin_data/`, so `hermes echo --latin` is usable out of the box. `HERMES_LATIN_DIR` still overrides for power users; the writable ledger stays at `~/.hermes/latin/ledger.json`. Per-file licenses + Wiktionary/DCC attribution in `latin_data/DATA_LICENSES.md`.
+- **`assert_messages_clean` fence wired into the learning loop** — the four learning modules (reflector / idea_capture / session_summary / auto_memory) scan their constructed prompts before the consolidation Ollama call. A no-op in the public build (the affect safety package is absent); a raise is caught best-effort (never blocks the user).
+- **`edit_file` `replace_all`** — replace every occurrence of `old_string` (not just the first) when `replace_all=true`; tool-call string params are coerced to bool.
+- **Latin tools gated out of normal mode** — `latin_validate` / `latin_srs` / `latin_paradigm` are registered for the import-time affect-cert attestation but pruned from normal-mode dispatch (they only surface in `hermes echo --latin`). `--latin` mode is unchanged.
+
+**Honesty note (corrects the v0.3.0 §11 listing):** at v0.3.0 the `--latin` tutor shipped its engine but **no data** — empty paradigm tables, empty lexicon, a one-line fallback persona — so it was effectively a shell. v0.3.1 ships the data subset, making `hermes echo --latin` genuinely usable (full 88-table paradigm drill + ~987-lemma macron gate + the paedagogus persona). Ginn book text (copyrighted), the personal ledger, and the private build seam remain out of the public tree.
+
 ## 12. License and attribution
 
 MIT License. Upstream copyright belongs to the [yasutoshi-lab/Hermes](https://github.com/yasutoshi-lab/Hermes) authors and is retained; fork additions are (c) Echo-Computing, released under the same MIT terms.
+
+**Mixed-license data:** two bundled data files are **CC BY-SA 3.0** — `hermes_cli/agents/echo/latin_data/macron_lexicon.json` (its ~1,000-lemma DCC Latin Core Vocabulary subset, attributed to Dickinson College Commentaries) and `hermes_cli/agents/echo/latin_data/paradigm_tables.json` (its macronized conjugation cells transcribed from the English Wiktionary conjugation tables). The share-alike provision applies to each of those data files individually. All other code + data files in this fork are MIT. See `latin_data/DATA_LICENSES.md` for the per-file breakdown.
 
 ## 13. Acknowledgements
 
 - The [yasutoshi-lab/Hermes](https://github.com/yasutoshi-lab/Hermes) team — the local-LLM research agent this fork builds on, including the SearxNG integration, the LangGraph research pipeline, and the validation loop.
 - The Ollama project for the local inference runtime.
 - The LatinCy / spaCy `la_core_web_lg` model authors, and the FSRS-6 spaced-repetition algorithm authors, used by the Latin tutor's deterministic core.
+- Allen & Greenough, *New Latin Grammar* (1903) — the public-domain reference grammar cited by the Latin tutor's static declension tables.
+- The English [Wiktionary](https://en.wiktionary.org/) conjugation tables (CC BY-SA 3.0) — the macronized verb conjugation cells of the bundled `paradigm_tables.json`.
+- The [Dickinson College Commentaries](https://dcc.dickinson.edu/) Latin Core Vocabulary (CC BY-SA 3.0) — the ~1,000-lemma macronized subset of the bundled `macron_lexicon.json`.
 - The tree-sitter project, used by the graph tool.

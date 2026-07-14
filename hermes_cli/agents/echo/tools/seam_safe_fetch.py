@@ -46,11 +46,23 @@ Defenses:
   - NAME blocklist: localhost / metadata.google.internal / metadata.aws /
     metadata / kernel — defense-in-depth before DNS resolution.
 
-Residual (documented, v1): DNS-rebinding TOCTOU — a name resolving public at the
-floor-gate check + private at the handler's connect. The Phase 2 mitigation is
-pin-the-resolved-IP + fetch-with-Host-header (breaks HTTPS SNI, so HTTP-metadata
-only); v1's floor is the reserved check on every resolved IP + redirect
-re-validation. Named honestly in the tool description + this docstring.
+v2 (this module) closes the DNS-rebinding TOCTOU: the handler resolves the host
+ONCE per fetch/redirect-hop (the single ``_resolve_host`` supplies BOTH the
+reserved verdict AND the pin — F1 invariant; a second resolve would re-open the
+window), pins the resolved IP into the connect URL, and fetches with
+``Host: <original vhost netloc>`` (HTTPS adds ``extensions={"sni_hostname": host}``
+so httpcore uses the real vhost as TLS ``server_hostname`` — SNI + cert-verify
+against the vhost, not the pinned IP; ``httpcore/_sync/connection.py:151``).
+httpx connects to the IP literal and does NOT re-resolve, so a name rebinding
+public->private between check and connect cannot redirect the fetch. v1's floor
+(``check_url`` reserved + rate-limit gate, redirect re-validation) is unchanged.
+
+Residuals (documented, v2): F4 — the per-IP rate limit is keyed by the FLOOR
+GATE's resolved IP, so under a rebind the handler's pinned IP can differ and is
+not separately rate-limited (secondary defense; unchanged from v1). F7 — httpx
+defaults ``trust_env=True`` (honors ``HTTP(S)_PROXY``); a compliant proxy still
+connects to the pinned IP (pin holds), but a malicious proxy could re-resolve the
+``Host`` and rebind. Low-risk for the local-LLM single-machine profile; documented.
 
 UPSTREAM ``web_tools.py`` is LEFT UNTOUCHED (two-version rule): the seam re-
 registers ``fetch_url`` with ``handler=safe_fetch_wrapper`` in ``_build_registry``;
@@ -214,9 +226,12 @@ def _resolve_host(host: Optional[str]) -> Tuple[Optional[str], List[str]]:
         a fetch that might resolve differently inside the handler).
 
     DNS-rebinding TOCTOU (a name resolving public here, private at connect time)
-    is a documented v1 residual; pin-and-fetch-with-Host-header is the Phase 2
-    mitigation. The reserved check on EVERY resolved IP + the redirect re-
-    validation in ``safe_fetch_wrapper`` is the v1 floor.
+    is CLOSED in v2: ``safe_fetch_wrapper`` calls this ONCE per fetch/redirect-hop,
+    pins the returned IP into the connect URL, and fetches with ``Host: <vhost>``
+    so httpx does NOT re-resolve. This function is the single DNS chokepoint — one
+    call per fetch/redirect-hop supplies both the reserved verdict and the pin
+    (F1 invariant; do not pair it with a separate ``is_url_reserved`` call, which
+    would be a second ``getaddrinfo`` and re-open the window).
     """
     if not host:
         return None, []
@@ -347,43 +362,120 @@ def _strip_html(content: str) -> str:
     return _t
 
 
+def _connect_url(parsed, ip: str) -> str:
+    """Rebuild the URL with the pinned IP as the netloc (IPv6 bracketed), keeping
+    scheme + port + path + query. httpx connects to the IP literal and does NOT
+    re-resolve — this is what closes the DNS-rebinding TOCTOU (the connect target
+    is the already-reserved-checked IP, not a fresh resolve that could rebind
+    private between the check and the connect)."""
+    _h = f"[{ip}]" if ":" in ip else ip
+    try:
+        _port = parsed.port
+    except ValueError:
+        _port = None  # malformed port — let httpx refuse it downstream
+    _netloc = f"{_h}:{_port}" if _port else _h
+    return parsed._replace(netloc=_netloc).geturl()
+
+
+def _pin_and_fetch(parsed, vhost_netloc: str):
+    """Resolve ``parsed.hostname`` ONCE and fetch by connecting to the pinned IP.
+
+    F1 single-resolve invariant: this ONE ``_resolve_host`` call supplies BOTH the
+    reserved verdict AND the pin. Do NOT add a separate ``is_url_reserved`` call
+    — that would be a second ``getaddrinfo`` and re-open the TOCTOU (the reserved
+    check + pin must come from the SAME resolve, so a rebind between two resolves
+    cannot pin a private IP that escaped the check).
+
+    Returns ``(response, reserved_reason)``. ``reserved_reason`` is non-None iff
+    the host resolves to a reserved range -> the caller refuses (the handler's own
+    reserved check; defense-in-depth with the floor gate). On success ``response``
+    is the httpx.Response (possibly a 3xx the caller redirects on) and
+    ``reserved_reason`` is None. Network errors raise (caught by the caller).
+
+    HTTP uses the module-level ``httpx.get`` (no ``extensions`` param on the
+    module-level API — ``httpx/_api.py:174``); HTTPS uses ``httpx.Client.get``
+    with ``extensions={"sni_hostname": host}`` so httpcore uses the real vhost as
+    TLS ``server_hostname`` (``httpcore/_sync/connection.py:151``) — SNI + cert-
+    verify against the vhost, connect to the pinned IP. The ``Host`` header is the
+    original DNS vhost netloc (``host`` or ``host:port`` — F3)."""
+    _host = parsed.hostname
+    _scheme = parsed.scheme.lower()
+    _reason, _ips = _resolve_host(_host)
+    if _reason is not None:
+        return None, _reason
+    if not _ips:
+        return None, "no resolved IPs (unexpected for a non-empty host)"
+    _conn = _connect_url(parsed, _ips[0])
+    _headers = {"Host": vhost_netloc}
+    if _scheme == "https":
+        with httpx.Client() as _cli:
+            _resp = _cli.get(_conn, extensions={"sni_hostname": _host},
+                             headers=_headers, timeout=_FETCH_TIMEOUT,
+                             follow_redirects=False)
+    else:
+        _resp = httpx.get(_conn, headers=_headers, timeout=_FETCH_TIMEOUT,
+                          follow_redirects=False)
+    return _resp, None
+
+
 def safe_fetch_wrapper(url: str) -> str:
     """The ``fetch_url`` handler (registered in ``_build_registry`` as the handler
     for the ``fetch_url`` tool, replacing the upstream ``web_tools.fetch_url``
-    which had ZERO SSRF protection). Checks the LLM-supplied url + every redirect
-    hop against ``is_url_reserved``; fetches with ``follow_redirects=False`` + a
-    bounded manual redirect loop re-validating each Location header (the SSRF-
-    by-redirect vector). Returns extracted text (first ``_MAX_BODY_CHARS`` chars)
-    or an error string, matching the upstream ``fetch_url`` return shape so the
-    tool-result channel + leak-probe assertions are unchanged.
+    which had ZERO SSRF protection). v2 pin-and-fetch: per fetch/redirect-hop it
+    resolves the host ONCE, pins the resolved IP into the connect URL, and fetches
+    by connecting to that IP with ``Host: <original vhost netloc>`` (+ SNI for
+    HTTPS) so httpx does NOT re-resolve — closing the v1 DNS-rebinding TOCTOU.
+    Redirects use ``follow_redirects=False`` + a bounded manual loop, re-pinning
+    per hop (each hop's single resolve supplies its own reserved check). Returns
+    extracted text (first ``_MAX_BODY_CHARS`` chars) or an error string, matching
+    the upstream ``fetch_url`` return shape so the tool-result channel + leak-probe
+    assertions are unchanged.
 
     The floor gate (``agent.execute_tools``, in-process) already refused a
     reserved initial url; this handler re-checks (defense-in-depth: a direct call,
     or a registry rebuilt without the floor gate, still gets the reserved check)
-    AND owns the redirect re-validation the floor gate cannot see.
+    AND owns the redirect re-validation + the pin the floor gate cannot see.
 
-    DNS-rebinding TOCTOU is a documented v1 residual (a name resolving public at
-    the floor-gate check + private at the handler's connect). The Phase 2
-    mitigation is pin-the-resolved-IP + fetch-with-Host-header; v1's floor is the
-    reserved check on every resolved IP + redirect re-validation.
+    v2 closes the v1 DNS-rebinding residual: a name resolving public at the
+    floor-gate/handler check + private at httpx's connect. The single per-hop
+    ``_resolve_host`` supplies both verdict + pin; httpx connects to the pinned IP
+    literal and does not re-resolve. See the module docstring for the F4 (rate-
+    limit key) + F7 (proxy trust_env) residuals.
     """
-    _r = is_url_reserved(url)
-    if _r is not None:
-        return f"fetch_url refused (SSRF guard): {_r}"
     _cur = url
+    _on_redirect = False
     for _ in range(_MAX_REDIRECTS + 1):
-        try:
-            _resp = httpx.get(_cur, timeout=_FETCH_TIMEOUT, follow_redirects=False)
-        except Exception as _e:
-            return f"Failed to fetch URL — network error: {_e}"
+        _p = urlparse(_cur)
+        _sch_r = _scheme_refused(_cur)
+        if _sch_r is not None:
+            return (f"fetch_url refused (SSRF guard on redirect): {_sch_r}"
+                    if _on_redirect else f"fetch_url refused (SSRF guard): {_sch_r}")
+        # The DNS vhost netloc (host:port) — _cur stays the LOGICAL url (never the
+        # connect IP), so a same-server relative redirect keeps the right Host
+        # naturally (F2); an absolute cross-host Location re-derives it next hop.
+        _vhost = _p.netloc
+        if not _p.hostname:
+            # Hostless (schemeless/relative) url: no DNS-rebind surface; fetch the
+            # url directly (v1 pass-through).
+            try:
+                _resp = httpx.get(_cur, timeout=_FETCH_TIMEOUT,
+                                  follow_redirects=False)
+            except Exception as _e:
+                return f"Failed to fetch URL — network error: {_e}"
+        else:
+            try:
+                _resp, _reason = _pin_and_fetch(_p, _vhost)
+            except Exception as _e:
+                return f"Failed to fetch URL — network error: {_e}"
+            if _reason is not None:
+                return (f"fetch_url refused (SSRF guard on redirect): {_reason}"
+                        if _on_redirect else f"fetch_url refused (SSRF guard): {_reason}")
         if _resp.status_code in (301, 302, 303, 307, 308):
             _loc = _resp.headers.get("location", "").strip()
             if not _loc:
                 return "Failed to fetch URL — redirect with no Location header."
             _cur = urljoin(_cur, _loc)
-            _r = is_url_reserved(_cur)
-            if _r is not None:
-                return f"fetch_url refused (SSRF guard on redirect): {_r}"
+            _on_redirect = True
             continue
         try:
             _resp.raise_for_status()

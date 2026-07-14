@@ -547,8 +547,11 @@ def test_latin_paradigm_list_includes_year1_tenses(latin_dir):
 # short u). Wiktionary (CC BY-SA 3.0) is the gold standard. Non-hermetic:
 # loads the real latin data directly; skipped when those files are absent (fresh CI).
 
-REAL_PARADIGM = os.path.join(latin_tools._DEFAULT_LATIN_DIR, "paradigm_tables.json")
-REAL_LEXICON = os.path.join(latin_tools._DEFAULT_LATIN_DIR, "macron_lexicon.json")
+# v0.3.1: the real latin data ships bundled (hermes_cli/agents/echo/latin_data/),
+# so these integrity tests validate the SHIPPED data + run in any CI, not only on
+# a machine where ~/.hermes/latin happens to hold the curated files.
+REAL_PARADIGM = str(latin_tools.bundled_latin_data_dir() / "paradigm_tables.json")
+REAL_LEXICON = str(latin_tools.bundled_latin_data_dir() / "macron_lexicon.json")
 
 
 def _real_latin_data_present():
@@ -693,7 +696,7 @@ def test_real_lexicon_macronize_common_curriculum_words(monkeypatch):
     unit-tier proof that the gate now validates curriculum vocab without
     constant 'unverified' notices. (Full latin_validate on running prose is
     the integration tier — test_integration_live_latincy_parse.)"""
-    monkeypatch.setenv("HERMES_LATIN_DIR", latin_tools._DEFAULT_LATIN_DIR)
+    monkeypatch.setenv("HERMES_LATIN_DIR", str(latin_tools.bundled_latin_data_dir()))
     monkeypatch.setattr(latin_tools, "_NLP", None)
     monkeypatch.setattr(latin_tools, "_LEXICON", None)
     monkeypatch.setattr(latin_tools, "_PROPER_NOUNS", None)
@@ -722,7 +725,7 @@ def test_real_lexicon_inflected_form_via_principal_part(monkeypatch):
     value of noun genitive reconstruction — it covers the exact genitive form;
     other cases (acc/dat/abl) still warn, which is the documented graded-gate
     behavior."""
-    monkeypatch.setenv("HERMES_LATIN_DIR", latin_tools._DEFAULT_LATIN_DIR)
+    monkeypatch.setenv("HERMES_LATIN_DIR", str(latin_tools.bundled_latin_data_dir()))
     monkeypatch.setattr(latin_tools, "_NLP", None)
     monkeypatch.setattr(latin_tools, "_LEXICON", None)
     monkeypatch.setattr(latin_tools, "_PROPER_NOUNS", None)
@@ -737,6 +740,42 @@ def test_real_lexicon_inflected_form_via_principal_part(monkeypatch):
     # an inflected form NOT in citation/principal_parts → macron_unknown (warn).
     form, src = latin_tools._macronize_token("animōrum", "animus")  # gen pl
     assert src == "macron_unknown", ("animōrum", src)
+
+
+def test_bundled_data_loads_when_hermes_latin_dir_unset(monkeypatch, tmp_path):
+    """v0.3.1 headline fallback chain: with HERMES_LATIN_DIR UNSET + a clean
+    HOME (no ~/.hermes/latin to shadow), the tutor loads the BUNDLED data —
+    non-empty paradigm tables + the ~987-lemma lexicon + the FULL bundled
+    paedagogus persona (NOT the one-line fallback). Covers the unset-branch
+    fallback in _load_json + build_latin_system_prompt that every other latin
+    test skips by setting HERMES_LATIN_DIR. A regression breaking
+    bundled_latin_data_dir() resolution (e.g. the parent.parent off-by-one, or
+    the unset-branch fallback loop) silently degrades out-of-box `hermes echo
+    --latin` to empty data + a one-line persona — this test catches that."""
+    monkeypatch.delenv("HERMES_LATIN_DIR", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))  # ~/.hermes/latin -> tmp_path/.hermes/latin (absent)
+    monkeypatch.setattr(latin_tools, "_NLP", None)
+    monkeypatch.setattr(latin_tools, "_LEXICON", None)
+    monkeypatch.setattr(latin_tools, "_PROPER_NOUNS", None)
+    monkeypatch.setattr(latin_tools, "_PARADIGM_TABLES", None)
+
+    # (1) bundled paradigm tables: 88 conjugations + 8 declensions
+    paradigms = latin_tools._load_json("paradigm_tables.json")
+    assert paradigms and "conjugations" in paradigms and "declensions" in paradigms, \
+        "bundled paradigm_tables did not load via the unset-env fallback"
+
+    # (2) bundled macron lexicon: ~987 lemmas (+ the _schema key => ~988 top keys)
+    lex = latin_tools._load_json("macron_lexicon.json")
+    assert lex and len(lex) > 500, \
+        "bundled macron_lexicon did not load (keys={})".format(len(lex) if lex else 0)
+
+    # (3) persona: the FULL bundled paedagogus, not the one-line fallback
+    from hermes_cli.agents.echo.system_prompt import build_latin_system_prompt
+    prompt = build_latin_system_prompt([], [], {}, None)
+    assert "rigorous classical Latin tutor (paedagogus)." not in prompt, \
+        "unset-env persona fell back to the one-line string instead of the bundled paedagogus"
+    assert "deterministic engine is the source of truth" in prompt, \
+        "bundled paedagogus persona did not load (distinctive phrase absent)"
 
 
 # ---------------------------------------------------------------------------
@@ -1568,6 +1607,53 @@ def test_prune_to_latin_graceful_on_mock_registry():
     assert out is fake  # unchanged — no _tools dict to prune
 
 
+# --- v0.3.1 C1-complement: normal-mode latin gating (latin tools are --latin only) ---
+
+def test_prune_latin_out_removes_latin_keeps_rest():
+    """v0.3.1: _prune_latin_out(_build_registry()) drops the 3 latin det-core
+    tools but keeps every non-latin tool (the main Echo agent keeps its full
+    surface; the latin tutor's tools are gated to the --latin sandbox)."""
+    from hermes_cli.agents.echo import agent as agent_mod
+    reg = agent_mod._build_registry()
+    names_before = set(reg._tools.keys())
+    assert {"latin_validate", "latin_srs", "latin_paradigm"} <= names_before
+    pruned = agent_mod._prune_latin_out(agent_mod._build_registry())
+    names_after = set(pruned._tools.keys())
+    assert {"latin_validate", "latin_srs", "latin_paradigm"}.isdisjoint(names_after), (
+        "latin tools not pruned out of normal mode: {}".format(names_after))
+    non_latin_before = names_before - {"latin_validate", "latin_srs", "latin_paradigm"}
+    assert non_latin_before <= names_after, (
+        "non-latin tools dropped by _prune_latin_out: {}".format(non_latin_before - names_after))
+
+
+def test_prune_latin_out_graceful_on_mock_registry():
+    """v0.3.1: _prune_latin_out is a no-op on a registry without a dict _tools
+    attr (test fakes / mocks), mirroring _prune_to_latin, so the call-site
+    normal-mode prune composes with the existing mock pattern."""
+    from hermes_cli.agents.echo import agent as agent_mod
+
+    class _FakeReg:
+        def execute(self, name, params):
+            return {"name": name}
+
+    fake = _FakeReg()
+    out = agent_mod._prune_latin_out(fake)
+    assert out is fake  # unchanged — no _tools dict to prune
+
+
+def test_call_llm_normal_mode_hides_latin_tools(monkeypatch):
+    """v0.3.1: in normal mode (latin_state None) the 3 latin tools are pruned OUT
+    of the dispatch registry, so they are NOT rendered into the system prompt
+    (the main agent never sees them + a fabricated latin tool call is refused as
+    'unknown tool'). End-to-end pin of the call-site else-branch wiring."""
+    prompt = _call_llm_with_captured_prompt(monkeypatch, _minimal_state(latin_state=None))
+    assert "You are Hermes" in prompt  # default builder, not paedagogus
+    assert "paedagogus" not in prompt.lower()
+    assert "latin_validate" not in prompt, "latin_validate leaked into normal-mode prompt"
+    assert "latin_srs" not in prompt, "latin_srs leaked into normal-mode prompt"
+    assert "latin_paradigm" not in prompt, "latin_paradigm leaked into normal-mode prompt"
+
+
 # --- C4-F12: latin_validate length cap (DoS bound on the O(n) LatinCy parse) ---
 
 def test_latin_validate_rejects_oversized_input(latin_dir):
@@ -1879,8 +1965,22 @@ def test_integration_live_latincy_parse(tmp_path, monkeypatch):
         nlp = spacy.load("la_core_web_lg")
     except Exception:
         pytest.skip("la_core_web_lg not installed")
-    # point at the real curated data dir for a meaningful lexicon/proper-noun set
-    monkeypatch.setenv("HERMES_LATIN_DIR", latin_tools._DEFAULT_LATIN_DIR)
+    # hermetic latin dir: copy the bundled data into tmp so latin_validate's
+    # ledger writes land in tmp (NEVER the read-only bundled dir). v0.3.1 fix:
+    # pointing HERMES_LATIN_DIR straight at bundled_latin_data_dir() let the
+    # graded-gate write a stray latin_data/ledger.json — violating the
+    # 'writable ledger never lives in the bundled dir' invariant + risking a
+    # `git add -A` shipping a stale personal ledger. Same copy-to-tmp pattern
+    # as the live-smoke test below.
+    import shutil
+    latin_dir = tmp_path / "latin"
+    latin_dir.mkdir()
+    src = str(latin_tools.bundled_latin_data_dir())
+    for fn in ("macron_lexicon.json", "proper_nouns.json", "paradigm_tables.json"):
+        p = os.path.join(src, fn)
+        if os.path.exists(p):
+            shutil.copy(p, str(latin_dir / fn))
+    monkeypatch.setenv("HERMES_LATIN_DIR", str(latin_dir))
     monkeypatch.setattr(latin_tools, "_NLP", None)
     monkeypatch.setattr(latin_tools, "_LEXICON", None)
     monkeypatch.setattr(latin_tools, "_PROPER_NOUNS", None)
@@ -1936,7 +2036,7 @@ def test_integration_live_latin_smoke(tmp_path, monkeypatch):
     #     builder + tools fall back to defaults).
     latin_dir = tmp_path / "latin"
     latin_dir.mkdir()
-    src = latin_tools._DEFAULT_LATIN_DIR
+    src = str(latin_tools.bundled_latin_data_dir())
     for fn in ("paedagogus.md", "macron_lexicon.json", "proper_nouns.json",
                "paradigm_tables.json"):
         p = os.path.join(src, fn)

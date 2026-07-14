@@ -9,6 +9,16 @@ from loguru import logger
 
 from hermes_cli.agents.echo.memory import MemoryStore
 
+# v0.3.1 (axis-D fence into the learning loop): scan the constructed messages
+# before the consolidation Ollama call (the call_llm fence previously stopped
+# at the main loop). No-op in the public build (anima safety package absent ->
+# _PROMPT_GUARD is None); a raise is caught by the surrounding try -> best-effort
+# skip (returns False), never blocks the user.
+try:
+    from anima.safety.prompt_guard import DEFAULT_PROMPT_GUARD as _PROMPT_GUARD
+except ImportError:
+    _PROMPT_GUARD = None
+
 
 EXPLORATION_PROMPT = """The user is exploring a project idea. Your job is to help them think it through, not to design it yet. Ask clarifying questions. Explore constraints, trade-offs, and what success looks like. Don't propose solutions until the shape of the problem is clear."""
 
@@ -84,6 +94,9 @@ def consolidate_idea(store: MemoryStore, transcript: str, ollama_config: dict) -
                 "num_predict": 1024,
             },
         }
+
+        if _PROMPT_GUARD is not None:
+            _PROMPT_GUARD.assert_messages_clean(payload["messages"])
 
         response = httpx.post(
             ollama_config.get("api_url", "http://localhost:11434/api/chat"),

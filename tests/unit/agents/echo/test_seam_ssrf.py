@@ -477,6 +477,161 @@ class TestHandlerRedirectRevalidation:
 
 
 # ---------------------------------------------------------------------------
+# v2 pin-and-fetch (closes the v1 DNS-rebinding TOCTOU): the handler resolves
+# the host ONCE per hop, pins the resolved IP into the connect URL, and fetches
+# by connecting to that IP (httpx never re-resolves). HTTP stays on the module-
+# level httpx.get; HTTPS uses httpx.Client with extensions={"sni_hostname": host}.
+# These tests call safe_fetch_wrapper DIRECTLY (not via execute_tools) so the
+# floor gate's separate resolve is NOT call #1 — the handler's single resolve is
+# the only getaddrinfo (the F1 guardrail).
+# ---------------------------------------------------------------------------
+
+class TestPinAndFetch:
+    def test_pin_uses_resolved_ip_not_hostname(self, monkeypatch):
+        """The connect URL pins the resolved IP; the DNS name never reaches httpx
+        (if it did, httpx would re-resolve -> the rebind window re-opens)."""
+        import socket as _s
+        monkeypatch.setattr(
+            "hermes_cli.agents.echo.tools.seam_safe_fetch.socket.getaddrinfo",
+            lambda _h, _p: [(_s.AF_INET, _s.SOCK_STREAM, 0, "", ("93.184.216.34", 0))])
+        _got = []
+        monkeypatch.setattr("hermes_cli.agents.echo.tools.seam_safe_fetch.httpx.get",
+            lambda url, **_kw: (_got.append(url) or _FakeResp(200, text="ok")))
+        safe_fetch_wrapper("http://rebind.example.com/")
+        assert _got, "httpx.get must be called"
+        assert "93.184.216.34" in _got[0]
+        assert "rebind.example.com" not in _got[0], f"name leaked into connect URL: {_got[0]!r}"
+
+    def test_dns_rebinding_toctou_closed(self, monkeypatch):
+        """F1 guardrail: getaddrinfo returns PUBLIC on call #1, PRIVATE on call #2.
+        v2 must call getaddrinfo EXACTLY ONCE (the single resolve supplies verdict
+        + pin) and fetch the PUBLIC IP — the private rebind is never reached."""
+        import socket as _s
+        _gai = []
+        _seq = ["93.184.216.34", "169.254.169.254"]  # call#1 public, call#2 private
+
+        def _fake_gai(_h, _p):
+            _ip = _seq[min(len(_gai), len(_seq) - 1)]
+            _gai.append(_h)
+            return [(_s.AF_INET, _s.SOCK_STREAM, 0, "", (_ip, 0))]
+
+        monkeypatch.setattr("hermes_cli.agents.echo.tools.seam_safe_fetch.socket.getaddrinfo", _fake_gai)
+        _got = []
+        monkeypatch.setattr("hermes_cli.agents.echo.tools.seam_safe_fetch.httpx.get",
+            lambda url, **_kw: (_got.append(url) or _FakeResp(200, text="ok")))
+        _out = safe_fetch_wrapper("http://rebind.example.com/")
+        assert len(_gai) == 1, f"getaddrinfo must be called exactly once (F1), got {len(_gai)}"
+        assert _got, "httpx.get must be called"
+        assert "93.184.216.34" in _got[0], f"must pin the PUBLIC (call#1) IP, got {_got[0]!r}"
+        assert "169.254" not in _got[0], "the private rebind IP must NOT reach the fetch"
+        assert "SSRF" not in _out
+
+    def test_pin_refuses_if_handler_resolves_private(self, monkeypatch):
+        """The handler's OWN reserved check refuses when the resolved IP is private
+        — defense-in-depth with the floor gate (a direct call still gets refused)."""
+        import socket as _s
+        monkeypatch.setattr(
+            "hermes_cli.agents.echo.tools.seam_safe_fetch.socket.getaddrinfo",
+            lambda _h, _p: [(_s.AF_INET, _s.SOCK_STREAM, 0, "", ("169.254.169.254", 0))])
+        _got = []
+        monkeypatch.setattr("hermes_cli.agents.echo.tools.seam_safe_fetch.httpx.get",
+            lambda url, **_kw: (_got.append(url) or _FakeResp(200, text="oops")))
+        _out = safe_fetch_wrapper("http://rebind.example.com/")
+        assert "SSRF guard" in _out
+        assert "169.254" in _out
+        assert _got == [], "httpx.get must NOT be called when the host resolves reserved"
+
+    def test_pin_preserves_port_and_host_header(self, monkeypatch):
+        """F3: the connect URL keeps the explicit port + path + query, and the Host
+        header is the original DNS vhost netloc (host:port)."""
+        import socket as _s
+        monkeypatch.setattr(
+            "hermes_cli.agents.echo.tools.seam_safe_fetch.socket.getaddrinfo",
+            lambda _h, _p: [(_s.AF_INET, _s.SOCK_STREAM, 0, "", ("93.184.216.34", 0))])
+        _got = {}
+        def _fake_get(url, **_kw):
+            _got["url"] = url
+            _got["headers"] = _kw.get("headers")
+            return _FakeResp(200, text="ok")
+        monkeypatch.setattr("hermes_cli.agents.echo.tools.seam_safe_fetch.httpx.get", _fake_get)
+        safe_fetch_wrapper("http://rebind.example.com:8080/path?q=1")
+        assert _got.get("url") == "http://93.184.216.34:8080/path?q=1", \
+            f"port+path+query must be preserved, got {_got.get('url')!r}"
+        _h = _got.get("headers") or {}
+        assert _h.get("Host") == "rebind.example.com:8080", \
+            f"Host must be the vhost netloc (F3), got {_h!r}"
+
+    def test_pin_ipv6_bracketed(self, monkeypatch):
+        """A resolved public IPv6 is bracketed in the connect URL netloc."""
+        import socket as _s
+        _v6 = "2606:2800:220:1:248:1893:25c8:1946"  # global unicast (not reserved)
+        monkeypatch.setattr(
+            "hermes_cli.agents.echo.tools.seam_safe_fetch.socket.getaddrinfo",
+            lambda _h, _p: [(_s.AF_INET6, _s.SOCK_STREAM, 0, "", (_v6, 0, 0, 0))])
+        _got = []
+        monkeypatch.setattr("hermes_cli.agents.echo.tools.seam_safe_fetch.httpx.get",
+            lambda url, **_kw: (_got.append(url) or _FakeResp(200, text="ok")))
+        safe_fetch_wrapper("http://rebind.example.com/path")
+        assert _got, "httpx.get must be called"
+        assert _got[0].startswith("http://[2606:2800:220:1:248:1893:25c8:1946]"), \
+            f"IPv6 must be bracketed in the connect URL, got {_got[0]!r}"
+
+    def test_pin_carries_vhost_across_relative_redirect(self, monkeypatch):
+        """F2: a same-server RELATIVE redirect keeps the original DNS vhost as the
+        Host header on the re-fetch (a vhosted server sees the right Host)."""
+        import socket as _s
+        monkeypatch.setattr(
+            "hermes_cli.agents.echo.tools.seam_safe_fetch.socket.getaddrinfo",
+            lambda _h, _p: [(_s.AF_INET, _s.SOCK_STREAM, 0, "", ("93.184.216.34", 0))])
+        _hosts = []
+
+        def _fake_get(url, **_kw):
+            _h = _kw.get("headers")
+            _hosts.append(_h.get("Host") if _h else None)
+            if url == "http://93.184.216.34/":
+                return _FakeResp(302, location="/page2")
+            return _FakeResp(200, text="ok")
+
+        monkeypatch.setattr("hermes_cli.agents.echo.tools.seam_safe_fetch.httpx.get", _fake_get)
+        _out = safe_fetch_wrapper("http://rebind.example.com/")
+        assert _out == "ok", f"relative redirect should be followed, got {_out!r}"
+        assert _hosts == ["rebind.example.com", "rebind.example.com"], \
+            f"vhost Host must carry across the relative redirect (F2), got {_hosts}"
+
+    def test_https_pin_uses_sni_hostname(self, monkeypatch):
+        """HTTPS pins the IP in the connect URL + sets sni_hostname to the real
+        vhost (so SNI + cert-verify use the vhost, connect to the IP)."""
+        import socket as _s
+        monkeypatch.setattr(
+            "hermes_cli.agents.echo.tools.seam_safe_fetch.socket.getaddrinfo",
+            lambda _h, _p: [(_s.AF_INET, _s.SOCK_STREAM, 0, "", ("93.184.216.34", 0))])
+        _got = {}
+
+        class _FakeCli:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return None
+
+            def get(self, url, **_kw):
+                _got["url"] = url
+                _got["extensions"] = _kw.get("extensions")
+                _got["headers"] = _kw.get("headers")
+                return _FakeResp(200, text="ok")
+
+        monkeypatch.setattr("hermes_cli.agents.echo.tools.seam_safe_fetch.httpx.Client", _FakeCli)
+        _out = safe_fetch_wrapper("https://rebind.example.com/path?q=1")
+        assert "SSRF" not in _out, f"https pin should succeed, got {_out!r}"
+        assert _got.get("url") == "https://93.184.216.34/path?q=1", \
+            f"https connect URL must pin the IP, got {_got.get('url')!r}"
+        assert _got.get("extensions") == {"sni_hostname": "rebind.example.com"}, \
+            f"HTTPS must set sni_hostname to the real vhost, got {_got.get('extensions')!r}"
+        assert (_got.get("headers") or {}).get("Host") == "rebind.example.com", \
+            f"Host must be the vhost, got {_got.get('headers')!r}"
+
+
+# ---------------------------------------------------------------------------
 # integration tier (needs network + DNS; skipped by apply_seam.sh's
 # -m 'not integration'; run in a separate live gate)
 # ---------------------------------------------------------------------------
@@ -501,3 +656,22 @@ class TestIntegrationLiveFetch:
         handler's is_url_reserved check fires before any fetch)."""
         _out = safe_fetch_wrapper("http://169.254.169.254/latest/meta-data/")
         assert "SSRF guard" in _out
+
+    def test_live_https_pinned_fetch(self):
+        """Live e2e: a real HTTPS url is fetched via pin-and-fetch (resolve host
+        -> pin IP -> connect to the IP with sni_hostname=vhost so SNI + cert-verify
+        use the real host). The pin must NOT break certificate verification: a
+        successful fetch returns content; an SSL/cert error would mean the pin
+        broke cert-verify (the e2e backstop for the sni_hostname claim)."""
+        try:
+            import socket
+            socket.getaddrinfo("example.com", None)
+        except Exception:
+            pytest.skip("no network / DNS unreachable")
+        _out = safe_fetch_wrapper("https://example.com/")
+        assert "SSRF guard" not in _out, f"public https url was SSRF-refused: {_out!r}"
+        # A graceful network error (timeout/unreachable) is tolerated; an SSL/cert
+        # error is NOT — it would mean the pinned-IP connect broke cert-verify.
+        _low = _out.lower()
+        assert "ssl" not in _low and "cert" not in _low, \
+            f"HTTPS pin must keep cert-verify against the real vhost; got {_out!r}"

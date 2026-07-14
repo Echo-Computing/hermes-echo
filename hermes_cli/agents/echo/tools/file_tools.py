@@ -52,13 +52,18 @@ def write_file(path: str, content: str) -> str:
     return f"File written: {path}"
 
 
-def edit_file(path: str, old_string: str, new_string: str) -> str:
-    """Replace a string in an existing file (first occurrence only).
+def edit_file(path: str, old_string: str, new_string: str, replace_all: bool = False) -> str:
+    """Replace a string in an existing file.
+
+    By default only the first occurrence of old_string is replaced; pass
+    replace_all=True to replace every occurrence.
 
     Args:
         path: Absolute path to the file.
         old_string: The exact text to replace.
         new_string: The replacement text.
+        replace_all: If True, replace every occurrence; if False (default),
+            replace only the first.
 
     Returns:
         A confirmation message.
@@ -75,6 +80,13 @@ def edit_file(path: str, old_string: str, new_string: str) -> str:
     if old_string not in content:
         raise ValueError(f"old_string not found in file: {old_string[:80]}...")
 
-    new_content = content.replace(old_string, new_string, 1)
+    # Tool-call XML delivers parameters as strings, so a bool param arrives as
+    # "true"/"false" (a non-empty string is truthy -> a naive `if replace_all:`
+    # would treat "false" as True). Coerce robustly. NOTE: str.replace(..., 0)
+    # replaces NOTHING (count=0 is a zero-budget cap, not "all"), so the count
+    # switch is an if/else, not `0 if replace_all else 1`.
+    if isinstance(replace_all, str):
+        replace_all = replace_all.strip().lower() in ("true", "1", "yes", "on")
+    new_content = content.replace(old_string, new_string) if replace_all else content.replace(old_string, new_string, 1)
     file_path.write_text(new_content, encoding="utf-8")
     return f"File edited: {path}"

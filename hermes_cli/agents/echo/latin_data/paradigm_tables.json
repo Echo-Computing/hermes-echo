@@ -1,0 +1,1231 @@
+{
+  "_schema": "paradigm_tables v2. Static finite declension/conjugation tables, macronized, citing Allen & Greenough. The latin_paradigm handler returns these verbatim (pure lookup, NEVER LLM-generated). Year-1 milestone scope: 5 declensions (nom/gen/dat/acc/abl/voc sg + nom/gen/dat/acc/abl/voc pl) + 6 conjugation tags (1, 2, 3, 3_io, 4, sum) x indicative (present/imperfect/future/perfect/pluperfect/future-perfect x active+passive) + subjunctive (present/imperfect x active+passive); sum is active-only (no passive). Gaps beyond Year-1 (perfect/pluperfect subjunctive, etc.) return 'not yet curated - see A&G §X' and the tutor cites A&G. Macronized conjugation forms sourced from Wiktionary (CC BY-SA 3.0) and cross-checked against the curated macron lexicon; declension macrons per A&G + Ørberg conventions. Generator: bundled latin data (in-tree, see latin_data/).",
+  "declensions": {
+    "I": {
+      "example": "puella, -ae",
+      "gender": "feminine",
+      "ag_section": "A&G §33",
+      "sg": {
+        "nom": "puella",
+        "gen": "puellae",
+        "dat": "puellae",
+        "acc": "puellam",
+        "abl": "puellā",
+        "voc": "puella"
+      },
+      "pl": {
+        "nom": "puellae",
+        "gen": "puellarum",
+        "dat": "puellīs",
+        "acc": "puellās",
+        "abl": "puellīs",
+        "voc": "puellae"
+      }
+    },
+    "II_m": {
+      "example": "dominus, -ī",
+      "gender": "masculine",
+      "ag_section": "A&G §36",
+      "sg": {
+        "nom": "dominus",
+        "gen": "dominī",
+        "dat": "dominō",
+        "acc": "dominum",
+        "abl": "dominō",
+        "voc": "domine"
+      },
+      "pl": {
+        "nom": "dominī",
+        "gen": "dominōrum",
+        "dat": "dominīs",
+        "acc": "dominōs",
+        "abl": "dominīs",
+        "voc": "dominī"
+      }
+    },
+    "II_n": {
+      "example": "bellum, -ī",
+      "gender": "neuter",
+      "ag_section": "A&G §38",
+      "sg": {
+        "nom": "bellum",
+        "gen": "bellī",
+        "dat": "bellō",
+        "acc": "bellum",
+        "abl": "bellō",
+        "voc": "bellum"
+      },
+      "pl": {
+        "nom": "bella",
+        "gen": "bellōrum",
+        "dat": "bellīs",
+        "acc": "bella",
+        "abl": "bellīs",
+        "voc": "bella"
+      }
+    },
+    "III_m": {
+      "example": "rēx, rēgis",
+      "gender": "masculine",
+      "ag_section": "A&G §52",
+      "sg": {
+        "nom": "rēx",
+        "gen": "rēgis",
+        "dat": "rēgī",
+        "acc": "rēgem",
+        "abl": "rēge",
+        "voc": "rēx"
+      },
+      "pl": {
+        "nom": "rēgēs",
+        "gen": "rēgum",
+        "dat": "rēgibus",
+        "acc": "rēgēs",
+        "abl": "rēgibus",
+        "voc": "rēgēs"
+      }
+    },
+    "III_n": {
+      "example": "corpus, corporis",
+      "gender": "neuter",
+      "ag_section": "A&G §52",
+      "sg": {
+        "nom": "corpus",
+        "gen": "corporis",
+        "dat": "corporī",
+        "acc": "corpus",
+        "abl": "corpore",
+        "voc": "corpus"
+      },
+      "pl": {
+        "nom": "corpora",
+        "gen": "corporum",
+        "dat": "corporibus",
+        "acc": "corpora",
+        "abl": "corporibus",
+        "voc": "corpora"
+      }
+    },
+    "IV_f": {
+      "example": "manus, -ūs",
+      "gender": "feminine",
+      "ag_section": "A&G §65",
+      "sg": {
+        "nom": "manus",
+        "gen": "manūs",
+        "dat": "manuī",
+        "acc": "manum",
+        "abl": "manū",
+        "voc": "manus"
+      },
+      "pl": {
+        "nom": "manūs",
+        "gen": "manuum",
+        "dat": "manibus",
+        "acc": "manūs",
+        "abl": "manibus",
+        "voc": "manūs"
+      }
+    },
+    "IV_m": {
+      "example": "gradus, -ūs",
+      "gender": "masculine",
+      "ag_section": "A&G §64",
+      "sg": {
+        "nom": "gradus",
+        "gen": "gradūs",
+        "dat": "graduī",
+        "acc": "gradum",
+        "abl": "gradū",
+        "voc": "gradus"
+      },
+      "pl": {
+        "nom": "gradūs",
+        "gen": "graduum",
+        "dat": "gradibus",
+        "acc": "gradūs",
+        "abl": "gradibus",
+        "voc": "gradūs"
+      }
+    },
+    "V": {
+      "example": "rēs, reī",
+      "gender": "feminine",
+      "ag_section": "A&G §68",
+      "sg": {
+        "nom": "rēs",
+        "gen": "rēī",
+        "dat": "rēī",
+        "acc": "rem",
+        "abl": "rē",
+        "voc": "rēs"
+      },
+      "pl": {
+        "nom": "rēs",
+        "gen": "rērum",
+        "dat": "rēbus",
+        "acc": "rēs",
+        "abl": "rēbus",
+        "voc": "rēs"
+      }
+    }
+  },
+  "conjugations": {
+    "1_present_active": {
+      "example": "amō, amāre",
+      "ag_section": "A&G §184",
+      "cells": {
+        "1sg": "amō",
+        "2sg": "amās",
+        "3sg": "amat",
+        "1pl": "amāmus",
+        "2pl": "amātis",
+        "3pl": "amant"
+      }
+    },
+    "1_imperfect_active": {
+      "example": "amō, amāre",
+      "ag_section": "A&G §184",
+      "cells": {
+        "1sg": "amābam",
+        "2sg": "amābās",
+        "3sg": "amābat",
+        "1pl": "amābāmus",
+        "2pl": "amābātis",
+        "3pl": "amābant"
+      }
+    },
+    "1_future_active": {
+      "example": "amō, amāre",
+      "ag_section": "A&G §184",
+      "cells": {
+        "1sg": "amābō",
+        "2sg": "amābis",
+        "3sg": "amābit",
+        "1pl": "amābimus",
+        "2pl": "amābitis",
+        "3pl": "amābunt"
+      }
+    },
+    "1_perfect_active": {
+      "example": "amō, amāre",
+      "ag_section": "A&G §184",
+      "cells": {
+        "1sg": "amāvī",
+        "2sg": "amāvistī",
+        "3sg": "amāvit",
+        "1pl": "amāvimus",
+        "2pl": "amāvistis",
+        "3pl": "amāvērunt"
+      }
+    },
+    "1_pluperfect_active": {
+      "example": "amō, amāre",
+      "ag_section": "A&G §184",
+      "cells": {
+        "1sg": "amāveram",
+        "2sg": "amāverās",
+        "3sg": "amāverat",
+        "1pl": "amāverāmus",
+        "2pl": "amāverātis",
+        "3pl": "amāverant"
+      }
+    },
+    "1_future_perfect_active": {
+      "example": "amō, amāre",
+      "ag_section": "A&G §184",
+      "cells": {
+        "1sg": "amāverō",
+        "2sg": "amāveris",
+        "3sg": "amāverit",
+        "1pl": "amāverimus",
+        "2pl": "amāveritis",
+        "3pl": "amāverint"
+      }
+    },
+    "1_present_passive": {
+      "example": "amō, amāre",
+      "ag_section": "A&G §184",
+      "cells": {
+        "1sg": "amor",
+        "2sg": "amāris",
+        "3sg": "amātur",
+        "1pl": "amāmur",
+        "2pl": "amāminī",
+        "3pl": "amantur"
+      }
+    },
+    "1_imperfect_passive": {
+      "example": "amō, amāre",
+      "ag_section": "A&G §184",
+      "cells": {
+        "1sg": "amābar",
+        "2sg": "amābāris",
+        "3sg": "amābātur",
+        "1pl": "amābāmur",
+        "2pl": "amābāminī",
+        "3pl": "amābantur"
+      }
+    },
+    "1_future_passive": {
+      "example": "amō, amāre",
+      "ag_section": "A&G §184",
+      "cells": {
+        "1sg": "amābor",
+        "2sg": "amāberis",
+        "3sg": "amābitur",
+        "1pl": "amābimur",
+        "2pl": "amābiminī",
+        "3pl": "amābuntur"
+      }
+    },
+    "1_perfect_passive": {
+      "example": "amō, amāre",
+      "ag_section": "A&G §184",
+      "cells": {
+        "1sg": "amātus sum",
+        "2sg": "amātus es",
+        "3sg": "amātus est",
+        "1pl": "amātī sumus",
+        "2pl": "amātī estis",
+        "3pl": "amātī sunt"
+      }
+    },
+    "1_pluperfect_passive": {
+      "example": "amō, amāre",
+      "ag_section": "A&G §184",
+      "cells": {
+        "1sg": "amātus eram",
+        "2sg": "amātus erās",
+        "3sg": "amātus erat",
+        "1pl": "amātī erāmus",
+        "2pl": "amātī erātis",
+        "3pl": "amātī erant"
+      }
+    },
+    "1_future_perfect_passive": {
+      "example": "amō, amāre",
+      "ag_section": "A&G §184",
+      "cells": {
+        "1sg": "amātus erō",
+        "2sg": "amātus eris",
+        "3sg": "amātus erit",
+        "1pl": "amātī erimus",
+        "2pl": "amātī eritis",
+        "3pl": "amātī erunt"
+      }
+    },
+    "1_present_subjunctive_active": {
+      "example": "amō, amāre",
+      "ag_section": "A&G §184",
+      "cells": {
+        "1sg": "amem",
+        "2sg": "amēs",
+        "3sg": "amet",
+        "1pl": "amēmus",
+        "2pl": "amētis",
+        "3pl": "ament"
+      }
+    },
+    "1_imperfect_subjunctive_active": {
+      "example": "amō, amāre",
+      "ag_section": "A&G §184",
+      "cells": {
+        "1sg": "amārem",
+        "2sg": "amārēs",
+        "3sg": "amāret",
+        "1pl": "amārēmus",
+        "2pl": "amārētis",
+        "3pl": "amārent"
+      }
+    },
+    "1_present_subjunctive_passive": {
+      "example": "amō, amāre",
+      "ag_section": "A&G §184",
+      "cells": {
+        "1sg": "amer",
+        "2sg": "amēris",
+        "3sg": "amētur",
+        "1pl": "amēmur",
+        "2pl": "amēminī",
+        "3pl": "amentur"
+      }
+    },
+    "1_imperfect_subjunctive_passive": {
+      "example": "amō, amāre",
+      "ag_section": "A&G §184",
+      "cells": {
+        "1sg": "amārer",
+        "2sg": "amārēris",
+        "3sg": "amārētur",
+        "1pl": "amārēmur",
+        "2pl": "amārēminī",
+        "3pl": "amārentur"
+      }
+    },
+    "2_present_active": {
+      "example": "moneō, monēre",
+      "ag_section": "A&G §185",
+      "cells": {
+        "1sg": "moneō",
+        "2sg": "monēs",
+        "3sg": "monet",
+        "1pl": "monēmus",
+        "2pl": "monētis",
+        "3pl": "monent"
+      }
+    },
+    "2_imperfect_active": {
+      "example": "moneō, monēre",
+      "ag_section": "A&G §185",
+      "cells": {
+        "1sg": "monēbam",
+        "2sg": "monēbās",
+        "3sg": "monēbat",
+        "1pl": "monēbāmus",
+        "2pl": "monēbātis",
+        "3pl": "monēbant"
+      }
+    },
+    "2_future_active": {
+      "example": "moneō, monēre",
+      "ag_section": "A&G §185",
+      "cells": {
+        "1sg": "monēbō",
+        "2sg": "monēbis",
+        "3sg": "monēbit",
+        "1pl": "monēbimus",
+        "2pl": "monēbitis",
+        "3pl": "monēbunt"
+      }
+    },
+    "2_perfect_active": {
+      "example": "moneō, monēre",
+      "ag_section": "A&G §185",
+      "cells": {
+        "1sg": "monuī",
+        "2sg": "monuistī",
+        "3sg": "monuit",
+        "1pl": "monuimus",
+        "2pl": "monuistis",
+        "3pl": "monuērunt"
+      }
+    },
+    "2_pluperfect_active": {
+      "example": "moneō, monēre",
+      "ag_section": "A&G §185",
+      "cells": {
+        "1sg": "monueram",
+        "2sg": "monuerās",
+        "3sg": "monuerat",
+        "1pl": "monuerāmus",
+        "2pl": "monuerātis",
+        "3pl": "monuerant"
+      }
+    },
+    "2_future_perfect_active": {
+      "example": "moneō, monēre",
+      "ag_section": "A&G §185",
+      "cells": {
+        "1sg": "monuerō",
+        "2sg": "monueris",
+        "3sg": "monuerit",
+        "1pl": "monuerimus",
+        "2pl": "monueritis",
+        "3pl": "monuerint"
+      }
+    },
+    "2_present_passive": {
+      "example": "moneō, monēre",
+      "ag_section": "A&G §185",
+      "cells": {
+        "1sg": "moneor",
+        "2sg": "monēris",
+        "3sg": "monētur",
+        "1pl": "monēmur",
+        "2pl": "monēminī",
+        "3pl": "monentur"
+      }
+    },
+    "2_imperfect_passive": {
+      "example": "moneō, monēre",
+      "ag_section": "A&G §185",
+      "cells": {
+        "1sg": "monēbar",
+        "2sg": "monēbāris",
+        "3sg": "monēbātur",
+        "1pl": "monēbāmur",
+        "2pl": "monēbāminī",
+        "3pl": "monēbantur"
+      }
+    },
+    "2_future_passive": {
+      "example": "moneō, monēre",
+      "ag_section": "A&G §185",
+      "cells": {
+        "1sg": "monēbor",
+        "2sg": "monēberis",
+        "3sg": "monēbitur",
+        "1pl": "monēbimur",
+        "2pl": "monēbiminī",
+        "3pl": "monēbuntur"
+      }
+    },
+    "2_perfect_passive": {
+      "example": "moneō, monēre",
+      "ag_section": "A&G §185",
+      "cells": {
+        "1sg": "monitus sum",
+        "2sg": "monitus es",
+        "3sg": "monitus est",
+        "1pl": "monitī sumus",
+        "2pl": "monitī estis",
+        "3pl": "monitī sunt"
+      }
+    },
+    "2_pluperfect_passive": {
+      "example": "moneō, monēre",
+      "ag_section": "A&G §185",
+      "cells": {
+        "1sg": "monitus eram",
+        "2sg": "monitus erās",
+        "3sg": "monitus erat",
+        "1pl": "monitī erāmus",
+        "2pl": "monitī erātis",
+        "3pl": "monitī erant"
+      }
+    },
+    "2_future_perfect_passive": {
+      "example": "moneō, monēre",
+      "ag_section": "A&G §185",
+      "cells": {
+        "1sg": "monitus erō",
+        "2sg": "monitus eris",
+        "3sg": "monitus erit",
+        "1pl": "monitī erimus",
+        "2pl": "monitī eritis",
+        "3pl": "monitī erunt"
+      }
+    },
+    "2_present_subjunctive_active": {
+      "example": "moneō, monēre",
+      "ag_section": "A&G §185",
+      "cells": {
+        "1sg": "moneam",
+        "2sg": "moneās",
+        "3sg": "moneat",
+        "1pl": "moneāmus",
+        "2pl": "moneātis",
+        "3pl": "moneant"
+      }
+    },
+    "2_imperfect_subjunctive_active": {
+      "example": "moneō, monēre",
+      "ag_section": "A&G §185",
+      "cells": {
+        "1sg": "monērem",
+        "2sg": "monērēs",
+        "3sg": "monēret",
+        "1pl": "monērēmus",
+        "2pl": "monērētis",
+        "3pl": "monērent"
+      }
+    },
+    "2_present_subjunctive_passive": {
+      "example": "moneō, monēre",
+      "ag_section": "A&G §185",
+      "cells": {
+        "1sg": "monear",
+        "2sg": "moneāris",
+        "3sg": "moneātur",
+        "1pl": "moneāmur",
+        "2pl": "moneāminī",
+        "3pl": "moneantur"
+      }
+    },
+    "2_imperfect_subjunctive_passive": {
+      "example": "moneō, monēre",
+      "ag_section": "A&G §185",
+      "cells": {
+        "1sg": "monērer",
+        "2sg": "monērēris",
+        "3sg": "monērētur",
+        "1pl": "monērēmur",
+        "2pl": "monērēminī",
+        "3pl": "monērentur"
+      }
+    },
+    "3_present_active": {
+      "example": "regō, regere",
+      "ag_section": "A&G §186",
+      "cells": {
+        "1sg": "regō",
+        "2sg": "regis",
+        "3sg": "regit",
+        "1pl": "regimus",
+        "2pl": "regitis",
+        "3pl": "regunt"
+      }
+    },
+    "3_imperfect_active": {
+      "example": "regō, regere",
+      "ag_section": "A&G §186",
+      "cells": {
+        "1sg": "regēbam",
+        "2sg": "regēbās",
+        "3sg": "regēbat",
+        "1pl": "regēbāmus",
+        "2pl": "regēbātis",
+        "3pl": "regēbant"
+      }
+    },
+    "3_future_active": {
+      "example": "regō, regere",
+      "ag_section": "A&G §186",
+      "cells": {
+        "1sg": "regam",
+        "2sg": "regēs",
+        "3sg": "reget",
+        "1pl": "regēmus",
+        "2pl": "regētis",
+        "3pl": "regent"
+      }
+    },
+    "3_perfect_active": {
+      "example": "regō, regere",
+      "ag_section": "A&G §186",
+      "cells": {
+        "1sg": "rēxī",
+        "2sg": "rēxistī",
+        "3sg": "rēxit",
+        "1pl": "rēximus",
+        "2pl": "rēxistis",
+        "3pl": "rēxērunt"
+      }
+    },
+    "3_pluperfect_active": {
+      "example": "regō, regere",
+      "ag_section": "A&G §186",
+      "cells": {
+        "1sg": "rēxeram",
+        "2sg": "rēxerās",
+        "3sg": "rēxerat",
+        "1pl": "rēxerāmus",
+        "2pl": "rēxerātis",
+        "3pl": "rēxerant"
+      }
+    },
+    "3_future_perfect_active": {
+      "example": "regō, regere",
+      "ag_section": "A&G §186",
+      "cells": {
+        "1sg": "rēxerō",
+        "2sg": "rēxeris",
+        "3sg": "rēxerit",
+        "1pl": "rēxerimus",
+        "2pl": "rēxeritis",
+        "3pl": "rēxerint"
+      }
+    },
+    "3_present_passive": {
+      "example": "regō, regere",
+      "ag_section": "A&G §186",
+      "cells": {
+        "1sg": "regor",
+        "2sg": "regeris",
+        "3sg": "regitur",
+        "1pl": "regimur",
+        "2pl": "regiminī",
+        "3pl": "reguntur"
+      }
+    },
+    "3_imperfect_passive": {
+      "example": "regō, regere",
+      "ag_section": "A&G §186",
+      "cells": {
+        "1sg": "regēbar",
+        "2sg": "regēbāris",
+        "3sg": "regēbātur",
+        "1pl": "regēbāmur",
+        "2pl": "regēbāminī",
+        "3pl": "regēbantur"
+      }
+    },
+    "3_future_passive": {
+      "example": "regō, regere",
+      "ag_section": "A&G §186",
+      "cells": {
+        "1sg": "regar",
+        "2sg": "regēris",
+        "3sg": "regētur",
+        "1pl": "regēmur",
+        "2pl": "regēminī",
+        "3pl": "regentur"
+      }
+    },
+    "3_perfect_passive": {
+      "example": "regō, regere",
+      "ag_section": "A&G §186",
+      "cells": {
+        "1sg": "rēctus sum",
+        "2sg": "rēctus es",
+        "3sg": "rēctus est",
+        "1pl": "rēctī sumus",
+        "2pl": "rēctī estis",
+        "3pl": "rēctī sunt"
+      }
+    },
+    "3_pluperfect_passive": {
+      "example": "regō, regere",
+      "ag_section": "A&G §186",
+      "cells": {
+        "1sg": "rēctus eram",
+        "2sg": "rēctus erās",
+        "3sg": "rēctus erat",
+        "1pl": "rēctī erāmus",
+        "2pl": "rēctī erātis",
+        "3pl": "rēctī erant"
+      }
+    },
+    "3_future_perfect_passive": {
+      "example": "regō, regere",
+      "ag_section": "A&G §186",
+      "cells": {
+        "1sg": "rēctus erō",
+        "2sg": "rēctus eris",
+        "3sg": "rēctus erit",
+        "1pl": "rēctī erimus",
+        "2pl": "rēctī eritis",
+        "3pl": "rēctī erunt"
+      }
+    },
+    "3_present_subjunctive_active": {
+      "example": "regō, regere",
+      "ag_section": "A&G §186",
+      "cells": {
+        "1sg": "regam",
+        "2sg": "regās",
+        "3sg": "regat",
+        "1pl": "regāmus",
+        "2pl": "regātis",
+        "3pl": "regant"
+      }
+    },
+    "3_imperfect_subjunctive_active": {
+      "example": "regō, regere",
+      "ag_section": "A&G §186",
+      "cells": {
+        "1sg": "regerem",
+        "2sg": "regerēs",
+        "3sg": "regeret",
+        "1pl": "regerēmus",
+        "2pl": "regerētis",
+        "3pl": "regerent"
+      }
+    },
+    "3_present_subjunctive_passive": {
+      "example": "regō, regere",
+      "ag_section": "A&G §186",
+      "cells": {
+        "1sg": "regar",
+        "2sg": "regāris",
+        "3sg": "regātur",
+        "1pl": "regāmur",
+        "2pl": "regāminī",
+        "3pl": "regantur"
+      }
+    },
+    "3_imperfect_subjunctive_passive": {
+      "example": "regō, regere",
+      "ag_section": "A&G §186",
+      "cells": {
+        "1sg": "regerer",
+        "2sg": "regerēris",
+        "3sg": "regerētur",
+        "1pl": "regerēmur",
+        "2pl": "regerēminī",
+        "3pl": "regerentur"
+      }
+    },
+    "3_io_present_active": {
+      "example": "capiō, capere",
+      "ag_section": "A&G §188",
+      "cells": {
+        "1sg": "capiō",
+        "2sg": "capis",
+        "3sg": "capit",
+        "1pl": "capimus",
+        "2pl": "capitis",
+        "3pl": "capiunt"
+      }
+    },
+    "3_io_imperfect_active": {
+      "example": "capiō, capere",
+      "ag_section": "A&G §188",
+      "cells": {
+        "1sg": "capiēbam",
+        "2sg": "capiēbās",
+        "3sg": "capiēbat",
+        "1pl": "capiēbāmus",
+        "2pl": "capiēbātis",
+        "3pl": "capiēbant"
+      }
+    },
+    "3_io_future_active": {
+      "example": "capiō, capere",
+      "ag_section": "A&G §188",
+      "cells": {
+        "1sg": "capiam",
+        "2sg": "capiēs",
+        "3sg": "capiet",
+        "1pl": "capiēmus",
+        "2pl": "capiētis",
+        "3pl": "capient"
+      }
+    },
+    "3_io_perfect_active": {
+      "example": "capiō, capere",
+      "ag_section": "A&G §188",
+      "cells": {
+        "1sg": "cēpī",
+        "2sg": "cēpistī",
+        "3sg": "cēpit",
+        "1pl": "cēpimus",
+        "2pl": "cēpistis",
+        "3pl": "cēpērunt"
+      }
+    },
+    "3_io_pluperfect_active": {
+      "example": "capiō, capere",
+      "ag_section": "A&G §188",
+      "cells": {
+        "1sg": "cēperam",
+        "2sg": "cēperās",
+        "3sg": "cēperat",
+        "1pl": "cēperāmus",
+        "2pl": "cēperātis",
+        "3pl": "cēperant"
+      }
+    },
+    "3_io_future_perfect_active": {
+      "example": "capiō, capere",
+      "ag_section": "A&G §188",
+      "cells": {
+        "1sg": "cēperō",
+        "2sg": "cēperis",
+        "3sg": "cēperit",
+        "1pl": "cēperimus",
+        "2pl": "cēperitis",
+        "3pl": "cēperint"
+      }
+    },
+    "3_io_present_passive": {
+      "example": "capiō, capere",
+      "ag_section": "A&G §188",
+      "cells": {
+        "1sg": "capior",
+        "2sg": "caperis",
+        "3sg": "capitur",
+        "1pl": "capimur",
+        "2pl": "capiminī",
+        "3pl": "capiuntur"
+      }
+    },
+    "3_io_imperfect_passive": {
+      "example": "capiō, capere",
+      "ag_section": "A&G §188",
+      "cells": {
+        "1sg": "capiēbar",
+        "2sg": "capiēbāris",
+        "3sg": "capiēbātur",
+        "1pl": "capiēbāmur",
+        "2pl": "capiēbāminī",
+        "3pl": "capiēbantur"
+      }
+    },
+    "3_io_future_passive": {
+      "example": "capiō, capere",
+      "ag_section": "A&G §188",
+      "cells": {
+        "1sg": "capiar",
+        "2sg": "capiēris",
+        "3sg": "capiētur",
+        "1pl": "capiēmur",
+        "2pl": "capiēminī",
+        "3pl": "capientur"
+      }
+    },
+    "3_io_perfect_passive": {
+      "example": "capiō, capere",
+      "ag_section": "A&G §188",
+      "cells": {
+        "1sg": "captus sum",
+        "2sg": "captus es",
+        "3sg": "captus est",
+        "1pl": "captī sumus",
+        "2pl": "captī estis",
+        "3pl": "captī sunt"
+      }
+    },
+    "3_io_pluperfect_passive": {
+      "example": "capiō, capere",
+      "ag_section": "A&G §188",
+      "cells": {
+        "1sg": "captus eram",
+        "2sg": "captus erās",
+        "3sg": "captus erat",
+        "1pl": "captī erāmus",
+        "2pl": "captī erātis",
+        "3pl": "captī erant"
+      }
+    },
+    "3_io_future_perfect_passive": {
+      "example": "capiō, capere",
+      "ag_section": "A&G §188",
+      "cells": {
+        "1sg": "captus erō",
+        "2sg": "captus eris",
+        "3sg": "captus erit",
+        "1pl": "captī erimus",
+        "2pl": "captī eritis",
+        "3pl": "captī erunt"
+      }
+    },
+    "3_io_present_subjunctive_active": {
+      "example": "capiō, capere",
+      "ag_section": "A&G §188",
+      "cells": {
+        "1sg": "capiam",
+        "2sg": "capiās",
+        "3sg": "capiat",
+        "1pl": "capiāmus",
+        "2pl": "capiātis",
+        "3pl": "capiant"
+      }
+    },
+    "3_io_imperfect_subjunctive_active": {
+      "example": "capiō, capere",
+      "ag_section": "A&G §188",
+      "cells": {
+        "1sg": "caperem",
+        "2sg": "caperēs",
+        "3sg": "caperet",
+        "1pl": "caperēmus",
+        "2pl": "caperētis",
+        "3pl": "caperent"
+      }
+    },
+    "3_io_present_subjunctive_passive": {
+      "example": "capiō, capere",
+      "ag_section": "A&G §188",
+      "cells": {
+        "1sg": "capiar",
+        "2sg": "capiāris",
+        "3sg": "capiātur",
+        "1pl": "capiāmur",
+        "2pl": "capiāminī",
+        "3pl": "capiantur"
+      }
+    },
+    "3_io_imperfect_subjunctive_passive": {
+      "example": "capiō, capere",
+      "ag_section": "A&G §188",
+      "cells": {
+        "1sg": "caperer",
+        "2sg": "caperēris",
+        "3sg": "caperētur",
+        "1pl": "caperēmur",
+        "2pl": "caperēminī",
+        "3pl": "caperentur"
+      }
+    },
+    "4_present_active": {
+      "example": "audiō, audīre",
+      "ag_section": "A&G §187",
+      "cells": {
+        "1sg": "audiō",
+        "2sg": "audīs",
+        "3sg": "audit",
+        "1pl": "audīmus",
+        "2pl": "audītis",
+        "3pl": "audiunt"
+      }
+    },
+    "4_imperfect_active": {
+      "example": "audiō, audīre",
+      "ag_section": "A&G §187",
+      "cells": {
+        "1sg": "audiēbam",
+        "2sg": "audiēbās",
+        "3sg": "audiēbat",
+        "1pl": "audiēbāmus",
+        "2pl": "audiēbātis",
+        "3pl": "audiēbant"
+      }
+    },
+    "4_future_active": {
+      "example": "audiō, audīre",
+      "ag_section": "A&G §187",
+      "cells": {
+        "1sg": "audiam",
+        "2sg": "audiēs",
+        "3sg": "audiet",
+        "1pl": "audiēmus",
+        "2pl": "audiētis",
+        "3pl": "audient"
+      }
+    },
+    "4_perfect_active": {
+      "example": "audiō, audīre",
+      "ag_section": "A&G §187",
+      "cells": {
+        "1sg": "audīvī",
+        "2sg": "audīvistī",
+        "3sg": "audīvit",
+        "1pl": "audīvimus",
+        "2pl": "audīvistis",
+        "3pl": "audīvērunt"
+      }
+    },
+    "4_pluperfect_active": {
+      "example": "audiō, audīre",
+      "ag_section": "A&G §187",
+      "cells": {
+        "1sg": "audīveram",
+        "2sg": "audīverās",
+        "3sg": "audīverat",
+        "1pl": "audīverāmus",
+        "2pl": "audīverātis",
+        "3pl": "audīverant"
+      }
+    },
+    "4_future_perfect_active": {
+      "example": "audiō, audīre",
+      "ag_section": "A&G §187",
+      "cells": {
+        "1sg": "audīverō",
+        "2sg": "audīveris",
+        "3sg": "audīverit",
+        "1pl": "audīverimus",
+        "2pl": "audīveritis",
+        "3pl": "audīverint"
+      }
+    },
+    "4_present_passive": {
+      "example": "audiō, audīre",
+      "ag_section": "A&G §187",
+      "cells": {
+        "1sg": "audior",
+        "2sg": "audīris",
+        "3sg": "audītur",
+        "1pl": "audīmur",
+        "2pl": "audīminī",
+        "3pl": "audiuntur"
+      }
+    },
+    "4_imperfect_passive": {
+      "example": "audiō, audīre",
+      "ag_section": "A&G §187",
+      "cells": {
+        "1sg": "audiēbar",
+        "2sg": "audiēbāris",
+        "3sg": "audiēbātur",
+        "1pl": "audiēbāmur",
+        "2pl": "audiēbāminī",
+        "3pl": "audiēbantur"
+      }
+    },
+    "4_future_passive": {
+      "example": "audiō, audīre",
+      "ag_section": "A&G §187",
+      "cells": {
+        "1sg": "audiar",
+        "2sg": "audiēris",
+        "3sg": "audiētur",
+        "1pl": "audiēmur",
+        "2pl": "audiēminī",
+        "3pl": "audientur"
+      }
+    },
+    "4_perfect_passive": {
+      "example": "audiō, audīre",
+      "ag_section": "A&G §187",
+      "cells": {
+        "1sg": "audītus sum",
+        "2sg": "audītus es",
+        "3sg": "audītus est",
+        "1pl": "audītī sumus",
+        "2pl": "audītī estis",
+        "3pl": "audītī sunt"
+      }
+    },
+    "4_pluperfect_passive": {
+      "example": "audiō, audīre",
+      "ag_section": "A&G §187",
+      "cells": {
+        "1sg": "audītus eram",
+        "2sg": "audītus erās",
+        "3sg": "audītus erat",
+        "1pl": "audītī erāmus",
+        "2pl": "audītī erātis",
+        "3pl": "audītī erant"
+      }
+    },
+    "4_future_perfect_passive": {
+      "example": "audiō, audīre",
+      "ag_section": "A&G §187",
+      "cells": {
+        "1sg": "audītus erō",
+        "2sg": "audītus eris",
+        "3sg": "audītus erit",
+        "1pl": "audītī erimus",
+        "2pl": "audītī eritis",
+        "3pl": "audītī erunt"
+      }
+    },
+    "4_present_subjunctive_active": {
+      "example": "audiō, audīre",
+      "ag_section": "A&G §187",
+      "cells": {
+        "1sg": "audiam",
+        "2sg": "audiās",
+        "3sg": "audiat",
+        "1pl": "audiāmus",
+        "2pl": "audiātis",
+        "3pl": "audiant"
+      }
+    },
+    "4_imperfect_subjunctive_active": {
+      "example": "audiō, audīre",
+      "ag_section": "A&G §187",
+      "cells": {
+        "1sg": "audīrem",
+        "2sg": "audīrēs",
+        "3sg": "audīret",
+        "1pl": "audīrēmus",
+        "2pl": "audīrētis",
+        "3pl": "audīrent"
+      }
+    },
+    "4_present_subjunctive_passive": {
+      "example": "audiō, audīre",
+      "ag_section": "A&G §187",
+      "cells": {
+        "1sg": "audiar",
+        "2sg": "audiāris",
+        "3sg": "audiātur",
+        "1pl": "audiāmur",
+        "2pl": "audiāminī",
+        "3pl": "audiantur"
+      }
+    },
+    "4_imperfect_subjunctive_passive": {
+      "example": "audiō, audīre",
+      "ag_section": "A&G §187",
+      "cells": {
+        "1sg": "audīrer",
+        "2sg": "audīrēris",
+        "3sg": "audīrētur",
+        "1pl": "audīrēmur",
+        "2pl": "audīrēminī",
+        "3pl": "audīrentur"
+      }
+    },
+    "sum_present_active": {
+      "example": "sum, esse",
+      "ag_section": "A&G §170 (sum, irregular)",
+      "cells": {
+        "1sg": "sum",
+        "2sg": "es",
+        "3sg": "est",
+        "1pl": "sumus",
+        "2pl": "estis",
+        "3pl": "sunt"
+      }
+    },
+    "sum_imperfect_active": {
+      "example": "sum, esse",
+      "ag_section": "A&G §170 (sum, irregular)",
+      "cells": {
+        "1sg": "eram",
+        "2sg": "erās",
+        "3sg": "erat",
+        "1pl": "erāmus",
+        "2pl": "erātis",
+        "3pl": "erant"
+      }
+    },
+    "sum_future_active": {
+      "example": "sum, esse",
+      "ag_section": "A&G §170 (sum, irregular)",
+      "cells": {
+        "1sg": "erō",
+        "2sg": "eris",
+        "3sg": "erit",
+        "1pl": "erimus",
+        "2pl": "eritis",
+        "3pl": "erunt"
+      }
+    },
+    "sum_perfect_active": {
+      "example": "sum, esse",
+      "ag_section": "A&G §170 (sum, irregular)",
+      "cells": {
+        "1sg": "fuī",
+        "2sg": "fuistī",
+        "3sg": "fuit",
+        "1pl": "fuimus",
+        "2pl": "fuistis",
+        "3pl": "fuērunt"
+      }
+    },
+    "sum_pluperfect_active": {
+      "example": "sum, esse",
+      "ag_section": "A&G §170 (sum, irregular)",
+      "cells": {
+        "1sg": "fueram",
+        "2sg": "fuerās",
+        "3sg": "fuerat",
+        "1pl": "fuerāmus",
+        "2pl": "fuerātis",
+        "3pl": "fuerant"
+      }
+    },
+    "sum_future_perfect_active": {
+      "example": "sum, esse",
+      "ag_section": "A&G §170 (sum, irregular)",
+      "cells": {
+        "1sg": "fuerō",
+        "2sg": "fueris",
+        "3sg": "fuerit",
+        "1pl": "fuerimus",
+        "2pl": "fueritis",
+        "3pl": "fuerint"
+      }
+    },
+    "sum_present_subjunctive_active": {
+      "example": "sum, esse",
+      "ag_section": "A&G §170 (sum, irregular)",
+      "cells": {
+        "1sg": "sim",
+        "2sg": "sīs",
+        "3sg": "sit",
+        "1pl": "sīmus",
+        "2pl": "sītis",
+        "3pl": "sint"
+      }
+    },
+    "sum_imperfect_subjunctive_active": {
+      "example": "sum, esse",
+      "ag_section": "A&G §170 (sum, irregular)",
+      "cells": {
+        "1sg": "essem",
+        "2sg": "essēs",
+        "3sg": "esset",
+        "1pl": "essēmus",
+        "2pl": "essētis",
+        "3pl": "essent"
+      }
+    }
+  }
+}

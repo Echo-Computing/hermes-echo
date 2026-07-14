@@ -869,11 +869,12 @@ def _build_registry(memory_dir: Optional[Path] = None) -> ToolRegistry:
     ))
     _register_tool(reg, SeamedTool(
         name="edit_file",
-        description="Replace a string in an existing file (first occurrence)",
+        description="Replace a string in an existing file (first occurrence, or all occurrences with replace_all=true)",
         parameters=[
             {"name": "path", "type": "string", "required": True, "description": "Absolute file path"},
             {"name": "old_string", "type": "string", "required": True, "description": "Exact text to replace"},
             {"name": "new_string", "type": "string", "required": True, "description": "Replacement text"},
+            {"name": "replace_all", "type": "bool", "required": False, "description": "If true, replace every occurrence of old_string; if false (default), only the first"},
         ],
         handler=edit_file,
         guard_source_policy="write",
@@ -1134,9 +1135,10 @@ def _build_registry(memory_dir: Optional[Path] = None) -> ToolRegistry:
             "CGNAT 100.64/10, link-local incl cloud-metadata 169.254.169.254, "
             "ULA fc00::/7), canonical-form obfuscations (decimal/hex/octal/IPv4-"
             "mapped IP literals normalized by ipaddress first), and re-validates "
-            "every redirect hop. Per-IP rate-limited. Residual v1: a DNS-rebinding "
-            "TOCTOU (name resolves public at the check, private at connect) is "
-            "NOT closed — pin-and-fetch is Phase 2."
+            "every redirect hop. Per-IP rate-limited. v2: DNS-rebinding TOCTOU "
+            "closed via pin-and-fetch (HTTP + HTTPS with SNI pinning) — each hop "
+            "resolves the host once, pins the IP, and fetches by connecting to "
+            "that IP so httpx does not re-resolve."
         ),
         parameters=[
             {"name": "url", "type": "string", "required": True, "description": "URL to fetch"},
@@ -1146,7 +1148,8 @@ def _build_registry(memory_dir: Optional[Path] = None) -> ToolRegistry:
         # is UNTOUCHED (two-version rule); the seam re-registers fetch_url with
         # this seam-owned handler. A floor gate in execute_tools (check_url)
         # refuses a reserved initial url at dispatch; this handler re-checks +
-        # re-validates every redirect hop (SSRF-by-redirect).
+        # re-validates every redirect hop (SSRF-by-redirect) + pins the resolved
+        # IP per hop (v2: closes the DNS-rebinding TOCTOU; httpx never re-resolves).
         requires_affect_cert=True,
         execution_sandbox="none",
         execution_sandbox_rationale=(
@@ -1180,6 +1183,23 @@ def _prune_to_latin(reg: ToolRegistry) -> ToolRegistry:
         for _name in list(tools.keys()):
             if _name not in _LATIN_ALLOWED_TOOLS:
                 del tools[_name]
+    return reg
+
+
+def _prune_latin_out(reg: ToolRegistry) -> ToolRegistry:
+    """v0.3.1 (latin gating, complement of _prune_to_latin): return reg with the
+    3 latin deterministic-core tools REMOVED. Run at the NORMAL-mode (non-latin)
+    dispatch call sites so the latin tutor's tools are not exposed to the main
+    Echo agent — they belong to the --latin sandbox only. No-op on a registry
+    whose _tools is not a plain dict (mock registries), mirroring _prune_to_latin,
+    so call-site pruning composes with the existing _build_registry mocks. The
+    latin tools still register in _build_registry (the full-set contract feeds
+    the import-time affect-cert attestation + leak-probe arms), so this is a
+    dispatch-time visibility/dispatch gate, not a registration gate."""
+    tools = getattr(reg, "_tools", None)
+    if isinstance(tools, dict):
+        for _name in _LATIN_ALLOWED_TOOLS:
+            tools.pop(_name, None)
     return reg
 
 
@@ -1402,12 +1422,16 @@ def call_llm(state: EchoState) -> EchoState:
 
     memory_dir = Path(config.get("memory_dir", str(Path.home() / ".hermes" / "memory")))
     registry = _build_registry(memory_dir)
-    # --latin allowlist (Cluster 1): prune to the 3 det-core tools so the latin
-    # system prompt advertises ONLY those + a fabricated non-latin tool call is
-    # refused as "unknown tool". Skipped in non-latin mode (every leak-probe
-    # arm + the existing _build_registry mocks pass through unchanged).
+    # --latin allowlist (Cluster 1): in --latin mode prune to the 3 det-core
+    # tools so the latin system prompt advertises ONLY those + a fabricated
+    # non-latin tool call is refused as "unknown tool". v0.3.1 (latin gating):
+    # in NORMAL mode prune the 3 latin tools OUT (they belong to the --latin
+    # sandbox only) so the main agent neither sees nor can dispatch them. Mock
+    # registries (non-dict _tools) pass through both prunes unchanged.
     if state.get("latin_state") is not None:
         registry = _prune_to_latin(registry)
+    else:
+        registry = _prune_latin_out(registry)
 
     exploration_mode = state.get("idea_active", False)
     past_sessions = [m.replace("[Past Session] ", "") for m in state.get("memory_context", []) if m.startswith("[Past Session]")]
@@ -1651,12 +1675,16 @@ def router(state: EchoState) -> str:
     response = state.get("response", "")
     memory_dir = Path(state["config"].get("memory_dir", str(Path.home() / ".hermes" / "memory")))
     registry = _build_registry(memory_dir)
-    # --latin allowlist (Cluster 1): prune to the 3 det-core tools so the latin
-    # system prompt advertises ONLY those + a fabricated non-latin tool call is
-    # refused as "unknown tool". Skipped in non-latin mode (every leak-probe
-    # arm + the existing _build_registry mocks pass through unchanged).
+    # --latin allowlist (Cluster 1): in --latin mode prune to the 3 det-core
+    # tools so the latin system prompt advertises ONLY those + a fabricated
+    # non-latin tool call is refused as "unknown tool". v0.3.1 (latin gating):
+    # in NORMAL mode prune the 3 latin tools OUT (they belong to the --latin
+    # sandbox only) so the main agent neither sees nor can dispatch them. Mock
+    # registries (non-dict _tools) pass through both prunes unchanged.
     if state.get("latin_state") is not None:
         registry = _prune_to_latin(registry)
+    else:
+        registry = _prune_latin_out(registry)
 
     if registry.has_tool_calls(response):
         logger.info("Echo: routing to execute_tools")
@@ -1717,12 +1745,16 @@ def execute_tools(state: EchoState) -> EchoState:
     # -> None). This is the load-bearing structural gate; the prompt-side filter
     # in call_llm is the conditioning complement.
     registry = _build_registry(memory_dir)
-    # --latin allowlist (Cluster 1): prune to the 3 det-core tools so the latin
-    # system prompt advertises ONLY those + a fabricated non-latin tool call is
-    # refused as "unknown tool". Skipped in non-latin mode (every leak-probe
-    # arm + the existing _build_registry mocks pass through unchanged).
+    # --latin allowlist (Cluster 1): in --latin mode prune to the 3 det-core
+    # tools so the latin system prompt advertises ONLY those + a fabricated
+    # non-latin tool call is refused as "unknown tool". v0.3.1 (latin gating):
+    # in NORMAL mode prune the 3 latin tools OUT (they belong to the --latin
+    # sandbox only) so the main agent neither sees nor can dispatch them. Mock
+    # registries (non-dict _tools) pass through both prunes unchanged.
     if state.get("latin_state") is not None:
         registry = _prune_to_latin(registry)
+    else:
+        registry = _prune_latin_out(registry)
 
     calls = registry.parse_tool_calls(state.get("response", ""))
     results = []

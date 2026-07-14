@@ -67,3 +67,38 @@ def test_edit_old_string_not_found(tmp_path):
     f.write_text("hello world")
     with pytest.raises(ValueError, match="old_string not found"):
         edit_file(str(f), "goodbye", "replacement")
+
+
+def test_edit_file_replace_all(tmp_path):
+    f = tmp_path / "edit.txt"
+    f.write_text("foo bar foo baz foo")
+    edit_file(str(f), "foo", "qux", replace_all=True)
+    assert f.read_text() == "qux bar qux baz qux"
+
+
+def test_edit_file_replace_all_false_is_first_only(tmp_path):
+    f = tmp_path / "edit.txt"
+    f.write_text("foo bar foo baz foo")
+    edit_file(str(f), "foo", "qux", replace_all=False)
+    assert f.read_text() == "qux bar foo baz foo"
+
+
+def test_edit_file_replace_all_string_coercion(tmp_path):
+    """Tool-call XML delivers bool params as strings; 'false' is a non-empty
+    string (truthy) so a naive `if replace_all:` would treat it as True and
+    replace ALL. Pin the coercion: 'true' -> all, 'false' -> first only."""
+    f = tmp_path / "edit.txt"
+    f.write_text("foo bar foo baz foo")
+    edit_file(str(f), "foo", "qux", replace_all="true")
+    assert f.read_text() == "qux bar qux baz qux"
+
+    f.write_text("foo bar foo baz foo")
+    edit_file(str(f), "foo", "qux", replace_all="false")
+    assert f.read_text() == "qux bar foo baz foo"
+
+
+def test_edit_file_replace_all_not_found_raises(tmp_path):
+    f = tmp_path / "edit.txt"
+    f.write_text("hello world")
+    with pytest.raises(ValueError, match="old_string not found"):
+        edit_file(str(f), "missing", "x", replace_all=True)

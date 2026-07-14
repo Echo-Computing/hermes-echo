@@ -292,11 +292,33 @@ def build_latin_system_prompt(
     source of truth for everything correctness-critical (DESIGN.md §7/§8)."""
     import os
     from pathlib import Path
-    latin_dir = Path(os.environ.get("HERMES_LATIN_DIR", os.path.join(os.path.expanduser("~"), ".hermes", "latin")))
-    try:
-        persona = (latin_dir / "paedagogus.md").read_text(encoding="utf-8")
-    except Exception:
-        persona = "You are a rigorous classical Latin tutor (paedagogus)."
+    from hermes_cli.agents.echo.tools.latin_tools import bundled_latin_data_dir
+    # v0.3.1: a public paedagogus.md ships bundled; fall back to it so the
+    # out-of-box persona is the full pedagogy, not the one-line fallback. When
+    # HERMES_LATIN_DIR is SET, respect it exactly — its paedagogus.md (or the
+    # one-line fallback if absent) wins; the bundled persona never shadows a
+    # dir the user pointed at (matches _load_json's env-respect semantics +
+    # preserves hermetic-test persona/fallback behavior: a test that sets
+    # HERMES_LATIN_DIR=tmp + writes its own paedagogus.md gets that persona; a
+    # test that sets the env with no paedagogus.md gets the one-line fallback,
+    # never the bundled one).
+    _env_latin = os.environ.get("HERMES_LATIN_DIR")
+    if _env_latin:
+        try:
+            persona = (Path(_env_latin) / "paedagogus.md").read_text(encoding="utf-8")
+        except Exception:
+            persona = "You are a rigorous classical Latin tutor (paedagogus)."
+    else:
+        persona = None
+        for _d in (Path(os.path.join(os.path.expanduser("~"), ".hermes", "latin")),
+                   bundled_latin_data_dir()):
+            try:
+                persona = (_d / "paedagogus.md").read_text(encoding="utf-8")
+                break
+            except Exception:
+                continue
+        if persona is None:
+            persona = "You are a rigorous classical Latin tutor (paedagogus)."
 
     tools_xml = _render_tools_xml(tools)
     state_block = _render_latin_state_block(latin_state)

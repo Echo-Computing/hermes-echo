@@ -127,6 +127,18 @@ def _latin_dir() -> Path:
     return Path(os.environ.get("HERMES_LATIN_DIR", _DEFAULT_LATIN_DIR))
 
 
+def bundled_latin_data_dir() -> Path:
+    """The read-only in-package latin data dir (v0.3.1: a public data subset
+    ships in-tree at hermes_cli/agents/echo/latin_data/ so `hermes echo --latin`
+    is usable out of the box — paradigm_tables.json + proper_nouns.json +
+    macron_lexicon.json + the public paedagogus.md). This dir is the FLOOR for
+    the three read-only data files when HERMES_LATIN_DIR is unset. The WRITABLE
+    ledger home stays _latin_dir() (env or ~/.hermes/latin) so the shell_tools
+    guard-source-root agreement + the hermetic-test {}-on-missing contract are
+    unchanged (a bundled dir must never receive ledger writes)."""
+    return Path(__file__).resolve().parent.parent / "latin_data"
+
+
 def _ledger_path() -> Path:
     return _latin_dir() / "ledger.json"
 
@@ -226,11 +238,25 @@ def _get_paradigm_tables() -> Dict[str, Any]:
 
 
 def _load_json(name: str) -> Dict[str, Any]:
-    p = _latin_dir() / name
-    try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+    # v0.3.1: a public read-only data subset ships bundled (paradigm_tables,
+    # proper_nouns, macron_lexicon) so the tutor is usable without
+    # HERMES_LATIN_DIR. When HERMES_LATIN_DIR is SET (power user / live dir /
+    # hermetic tests) respect it EXACTLY — a missing file is {} (preserves the
+    # test contract + the user's explicit dir choice; no silent bundled
+    # shadowing of a dir the user pointed at). Only when it is UNSET do we fall
+    # back to the user dir ~/.hermes/latin, then the bundled read-only data.
+    env_dir = os.environ.get("HERMES_LATIN_DIR")
+    if env_dir:
+        try:
+            return json.loads((Path(env_dir) / name).read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+    for d in (_latin_dir(), bundled_latin_data_dir()):
+        try:
+            return json.loads((d / name).read_text(encoding="utf-8"))
+        except Exception:
+            continue
+    return {}
 
 
 def _record_error_pattern(ledger: Dict[str, Any], pattern: str) -> None:
