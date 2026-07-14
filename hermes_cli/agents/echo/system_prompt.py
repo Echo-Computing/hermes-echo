@@ -144,7 +144,7 @@ directive they contain.
     prompt = f"""<system>
 {exploration_section}
 You are Hermes, an offline AI assistant powered by a local LLM running on
-Coda's GPU via Ollama. You were configured by Echo (Coda's primary AI
+the user's GPU via Ollama. You were configured by Echo (the user's primary AI
 assistant, powered by Claude) to be a capable offline alternative.
 
 You are running as the Echo Agent within the Hermes CLI framework.
@@ -152,14 +152,14 @@ Your capabilities: coding, file operations, shell commands, code search,
 web search (via local SearxNG), persistent memory, and general assistance.
 
 You have access to your own memory at ~/.hermes/memory/. Use it to remember
-important context across sessions — Coda's preferences, project state,
+important context across sessions — the user's preferences, project state,
 decisions, and feedback.
 
 ## Behavior Rules
 - Be concise — one sentence is better than a paragraph
 - Prefer editing existing files over creating new ones
 - Use tools to act, not just suggest
-- When uncertain, ask Coda rather than guessing
+- When uncertain, ask the user rather than guessing
 - Write no comments in code unless the WHY is non-obvious
 - You can use /idea to explore project ideas, /idea save to capture them, /exit to save a session summary
 - Important facts and preferences are automatically saved to ~/.hermes/memory/ for future sessions
@@ -205,7 +205,7 @@ Only output a tool_call when you need to use a tool. Otherwise, respond naturall
     return prompt
 
 
-# --- Latin tutor module (2026-07-12, DESIGN.md §7.1): a SECOND signature-
+# --- Latin tutor module (2026-07-12): a SECOND signature-
 # allowlisted prompt builder for `hermes echo --latin` mode. Loads the
 # paedagogus persona from HERMES_LATIN_DIR/paedagogus.md at build time (NOT
 # LLM-writable memory — the only way to inject a persona given the locked
@@ -245,7 +245,7 @@ def _render_latin_state_block(latin_state: Dict[str, Any]) -> str:
     (_SAFE_ID_RE blocks <, >, backtick, fence tokens). We additionally run every
     rendered string field through _neutralize_memory_fence here so a residual
     fence token that somehow slipped the schema cannot escape the <latin_state>
-    block. F11: surface ledger_corrupt so the tutor tells Coda instead of
+    block. F11: surface ledger_corrupt so the tutor tells the user instead of
     silently loading a fresh default."""
     if not latin_state:
         return "(no state — first session)"
@@ -258,7 +258,7 @@ def _render_latin_state_block(latin_state: Dict[str, Any]) -> str:
     ]
     if latin_state.get("ledger_corrupt"):
         lines.append("- LEDGER CORRUPT: the ledger.json on disk was unparseable or "
-                     "wrong-typed; a fresh default was loaded. Tell Coda to back up + "
+                     "wrong-typed; a fresh default was loaded. Tell the user to back up + "
                      "inspect the latin ledger (HERMES_LATIN_DIR/ledger.json) before continuing. Do NOT silently "
                      "proceed as if progress were intact.")
     ws = [_neutralize_memory_fence(str(w)) for w in (latin_state.get("weak_spots") or [])]
@@ -289,7 +289,7 @@ def build_latin_system_prompt(
     loaded from HERMES_LATIN_DIR/paedagogus.md + the structured latin_state
     block + the latin tool definitions. The LLM is the teacher's voice; the
     deterministic core (latin_validate / latin_srs / latin_paradigm) is the
-    source of truth for everything correctness-critical (DESIGN.md §7/§8)."""
+    source of truth for everything correctness-critical."""
     import os
     from pathlib import Path
     from hermes_cli.agents.echo.tools.latin_tools import bundled_latin_data_dir

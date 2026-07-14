@@ -17,7 +17,7 @@ banned affect field; assert_state_keys_clean_for_prompt permits the
 'latin_state' key). The ledger is owned by the latin tools (latin_srs/
 latin_validate write; this node only reads).
 
-DESIGN.md §7.1 (state load graph node) + §8.1 (state-aware, AI-driven).
+State-load graph node (state-aware, AI-driven).
 """
 
 import json
@@ -40,7 +40,7 @@ _DEFAULT_LATIN_DIR = os.path.join(os.path.expanduser("~"), ".hermes", "latin")
 # ("ablative_absolute", "subjunctive", "decl_I", "ablative absolute" with a
 # space) but blocks <, >, backtick, {, }, [, ], |, & — the structural
 # injection vectors. Non-matching items are DROPPED (with a logged warning so
-# Coda notices the ledger got dirty) rather than rendered.
+# the user notices the ledger got dirty) rather than rendered.
 _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_:\- ]+$")
 
 
@@ -94,7 +94,7 @@ def _ledger_path() -> Path:
 
 
 def _default_ledger() -> Dict[str, Any]:
-    """Cold-start ledger (DESIGN.md ledger_schema.md, version 1)."""
+    """Cold-start ledger (version 1)."""
     return {
         "version": 1,
         "profile": {
@@ -108,7 +108,7 @@ def _default_ledger() -> Dict[str, Any]:
         "cards": {},
         "error_patterns": [],
         # subjunctive: Ginn LIV-LX front-loads the paradigm before FR 27+ supplies
-        # in-context reading (DESIGN.md §4 bidirectional ordering).
+        # in-context reading (bidirectional ordering).
         "paradigm_only_flags": ["subjunctive"],
         "sessions": [],
     }
@@ -139,7 +139,7 @@ def _read_ledger() -> Dict[str, Any]:
 
     F11 (2026-07-13 red-team, Cluster 2): corruption is NON-SILENT. The prior
     bare ``except Exception: return _default_ledger()`` swallowed a corrupt
-    ledger and substituted a fresh default with no signal — Coda would lose all
+    ledger and substituted a fresh default with no signal — the user would lose all
     mastery/SRS progress and never know. Now a corrupt ledger logs a WARNING
     (so it shows in the session) before the in-memory fallback; the caller
     (load_latin_state) also tags latin_state with ``ledger_corrupt=True`` so
@@ -224,8 +224,8 @@ def load_latin_state(state: Dict[str, Any]) -> Dict[str, Any]:
         "paradigm_only_flags": paradigm_only_flags,
         "translate_permitted": bool(state.get("translate_permitted", False)),
         "skills_snapshot": skills_snapshot,
-        # F11: surface corruption to the LLM + Coda rather than silently loading
-        # a fresh default. The persona instructs the tutor to tell Coda.
+        # F11: surface corruption to the LLM + the user rather than silently loading
+        # a fresh default. The persona instructs the tutor to tell the user.
         "ledger_corrupt": ledger_corrupt,
     }
     state["latin_state"] = latin_state

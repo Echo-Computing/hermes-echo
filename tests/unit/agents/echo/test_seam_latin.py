@@ -1,4 +1,4 @@
-"""seam-tests for the Latin tutor module (2026-07-12, DESIGN.md §7).
+"""seam-tests for the Latin tutor module (2026-07-12).
 
 Covers the `hermes echo --latin` graph mode: a dedicated paedagogus agent
 sandboxed from the main Echo agent, with a deterministic
@@ -541,7 +541,7 @@ def test_latin_paradigm_list_includes_year1_tenses(latin_dir):
 # These guard the REAL paradigm_tables.json (the production
 # HERMES_LATIN_DIR data file) directly — the Year-1 scope, the macron
 # cross-check against the curated lexicon, + the high-risk macrons that the
-# ecce-logos cross-check source got WRONG (audiō 3pl audint→audiunt; 1st/2nd-
+# the reference Latin parser (cross-check) got WRONG (audiō 3pl audint→audiunt; 1st/2nd-
 # conj future 2sg -bes→-bis; imperfect subjunctive short-e→long-ē) + the
 # 4th-decl vocative rule (gradus, NOT grade) + the corrected sum perfect (fuī
 # short u). Wiktionary (CC BY-SA 3.0) is the gold standard. Non-hermetic:
@@ -599,7 +599,7 @@ def test_real_paradigm_macron_cross_check():
 @pytest.mark.skipif(not _real_latin_data_present(),
                     reason="real latin data files absent (non-hermetic)")
 def test_real_paradigm_high_risk_macrons():
-    """The F14-load-bearing macrons — the exact cells where ecce-logos had bugs
+    """The F14-load-bearing macrons — the exact cells where the reference Latin parser had bugs
     + the 4th-decl vocative rule + the corrected sum perfect."""
     p = json.load(open(REAL_PARADIGM, encoding="utf-8"))
     c = p["conjugations"]; d = p["declensions"]
@@ -653,7 +653,7 @@ def test_real_lexicon_dcc_expanded():
                     reason="real latin data files absent (non-hermetic)")
 def test_real_lexicon_starter_fixes_preserved():
     """The two F14 cross-check corrections in the A&G+Ørberg starter set
-    (sum `fuī` short-u — Wiktionary+ecce-logos agree, NOT `fūī`; audio
+    (sum `fuī` short-u — Wiktionary and the reference Latin parser agree, NOT `fūī`; audio
     `audiō` short-i in 1sg present — long ī only in 2sg/1pl/2pl) survived the
     DCC merge unchanged. DCC collides on these keys but existing takes
     precedence (convert_row skips on key collision)."""
@@ -1847,7 +1847,7 @@ def test_load_latin_state_crash_safe_mastery(tmp_path, monkeypatch):
 
 def test_render_latin_state_block_surfaces_corrupt_flag(latin_dir):
     """F11: the rendered block includes a LEDGER CORRUPT line the persona acts on
-    (tells Coda to back up + inspect ledger.json)."""
+    (tells the user to back up + inspect ledger.json)."""
     from hermes_cli.agents.echo.system_prompt import _render_latin_state_block
     block = _render_latin_state_block({"current_ginn_ch": 1, "ledger_corrupt": True})
     assert "LEDGER CORRUPT" in block
@@ -2013,7 +2013,7 @@ def test_integration_live_latin_smoke(tmp_path, monkeypatch):
 
     # (2) cloud model authenticated — a tiny chat call. The daemon can be up
     #     while the cloud token is expired (`{"error":"Unauthorized"}`); this is
-    #     the gate that was failing before Coda ran `ollama signin`.
+    #     the gate that was failing before the user ran `ollama signin`.
     model = "kimi-k2.6:cloud"
     try:
         req = urllib.request.Request(

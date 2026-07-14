@@ -1,6 +1,6 @@
 """Latin deterministic-core SeamedTool handlers (seam).
 
-Correctness-critical operations that NEVER trust the LLM (DESIGN.md §7.2):
+Correctness-critical operations that NEVER trust the LLM:
   - latin_validate : graded gate — LatinCy parse + macron lexicon + proper-noun
                      allowlist. Attempts deterministic macron correction on a
                      parse-able string before flagging. Returns accept/warn/reject.
@@ -22,7 +22,7 @@ _verify_registry_affect_cert attestation).
 
 Registered in agent.py _build_registry as DIRECT SeamedTool(...,
 execution_sandbox="none", requires_affect_cert=True) — NOT a ToolPlugin (a
-mount-namespace ceiling is not in the public build). DESIGN.md §7.3.
+mount-namespace ceiling is not in the public build).
 The ledger I/O helpers here are the canonical writer; latin_state.py imports
 the read helper for its pre-LLM graph node.
 """
@@ -89,7 +89,7 @@ _LATIN_VOWELS = set("aeiouyāēīōūȳAEIOUYĀĒĪŌŪȲ")
 # the LLM actually ran through latin_validate (input + macron-corrected output
 # forms). format_response drains this to warn when the LLM emitted macronized
 # Latin in its response WITHOUT going through the gate — the bypass that would
-# let wrong macrons reach Coda presented as correct. Cleared each format_response
+# let wrong macrons reach the user presented as correct. Cleared each format_response
 # drain, so it is scoped to one turn (the CLI processes one turn at a time).
 # Module-level (not state-threaded) because SeamedTool handlers receive only
 # params, not EchoState, and threading it through execute_tools would touch the
@@ -260,7 +260,7 @@ def _load_json(name: str) -> Dict[str, Any]:
 
 
 def _record_error_pattern(ledger: Dict[str, Any], pattern: str) -> None:
-    """Accumulate an error pattern (DESIGN.md §8.6 gentle-mode focused form)."""
+    """Accumulate an error pattern (gentle-mode focused form)."""
     now = datetime.now().isoformat()
     patterns = ledger.setdefault("error_patterns", [])
     for ep in patterns:
@@ -307,7 +307,7 @@ def _macronize_token(token_text: str, lemma: str) -> Tuple[str, str]:
 
 
 def latin_validate(latin_string: str, context: Optional[str] = None) -> Dict[str, Any]:
-    """Graded gate (DESIGN.md §7.2/§8.7). Parse the Latin string with LatinCy,
+    """Graded gate. Parse the Latin string with LatinCy,
     recover lemmas, attempt deterministic macron correction from the curated
     lexicon, flag-and-warn on proper nouns + unknown macronization, reject on a
     true parse failure (no lemma) OR on non-Latin input (no Latin vowel in any
@@ -460,7 +460,7 @@ def latin_validate(latin_string: str, context: Optional[str] = None) -> Dict[str
 
 def latin_srs(card_id: str, rating: str, front: Optional[str] = None,
               back: Optional[str] = None) -> Dict[str, Any]:
-    """FSRS-6 review scheduling + ledger update (DESIGN.md §7.2). If the card is
+    """FSRS-6 review scheduling + ledger update. If the card is
     new and front+back are supplied, create it; otherwise review the existing
     card. The FSRS scheduler is the SOLE authority on the next due date — the
     LLM never sets the schedule. rating is one of again/hard/good/easy."""
@@ -548,7 +548,7 @@ def latin_srs(card_id: str, rating: str, front: Optional[str] = None,
 
 
 def latin_paradigm(kind: str, args: Optional[str] = None) -> Dict[str, Any]:
-    """Static finite declension/conjugation tables (DESIGN.md §7.2/§8.5). Pure
+    """Static finite declension/conjugation tables. Pure
     lookup — the LLM never generates a paradigm. kind = a table id matching a
     key in paradigm_tables.json (e.g. 'declension:I', 'declension:II_m',
     'conjugation:1_present_active', 'conjugation:sum_present_active'), or

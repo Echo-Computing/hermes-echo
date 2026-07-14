@@ -36,7 +36,7 @@ class TestLoadedMemoryFenced:
         """The ## Loaded Memory section wraps memory_lines in
         <<<UNTRUSTED_MEMORY>>> fences + a trust note."""
         prompt = build_system_prompt(
-            [], ["pref_x: Coda prefers terse replies", "proj_y: chess engine run 5"],
+            [], ["pref_x: the user prefers terse replies", "proj_y: chess engine run 5"],
             exploration_mode=False, past_sessions=None,
         )
         assert "## Loaded Memory" in prompt
@@ -45,7 +45,7 @@ class TestLoadedMemoryFenced:
         # Trust note present
         assert "DATA" in prompt and "not operator instructions" in prompt
         # NO content stripped — both memory lines survive inside the fence
-        assert "pref_x: Coda prefers terse replies" in prompt
+        assert "pref_x: the user prefers terse replies" in prompt
         assert "proj_y: chess engine run 5" in prompt
 
     def test_loaded_memory_lines_inside_fence_only(self):
@@ -155,8 +155,8 @@ class TestFenceTokenInjectionEscapability:
         """Neutralization strips ONLY the literal fence tokens — the actual
         memory text survives (no data loss)."""
         prompt = build_system_prompt(
-            [], ["real_pref: Coda prefers terse replies", "proj: chess run 5"],
+            [], ["real_pref: the user prefers terse replies", "proj: chess run 5"],
             past_sessions=None,
         )
-        assert "real_pref: Coda prefers terse replies" in prompt
+        assert "real_pref: the user prefers terse replies" in prompt
         assert "proj: chess run 5" in prompt

@@ -258,7 +258,7 @@ def echo(model, prompt, yes, show_config, research_prompt, research_rounds, rese
             continue
 
         elif user_input.startswith("/translate"):
-            # /translate — per-turn Latin-first escape hatch (DESIGN.md §7.1/§8.3).
+            # /translate — per-turn Latin-first escape hatch.
             # A user-typed override (NOT an LLM-decided tool param): sets
             # state['translate_permitted'] so the latin builder + tutor tools
             # permit translation for this one turn. With text ("/translate <x>")

@@ -21,14 +21,14 @@ def test_build_system_prompt_with_tools_and_memory():
             ],
         },
     ]
-    memory = ["GPU: RTX 2070 with 8GB VRAM", "User: Coda"]
+    memory = ["GPU: RTX 2070 with 8GB VRAM", "User: test_user"]
 
     prompt = build_system_prompt(tools, memory)
 
     # Should contain identity
     assert "Hermes" in prompt
     assert "Echo Agent" in prompt
-    assert "Coda" in prompt
+    assert "test_user" in prompt
 
     # Should contain tool definitions
     assert "read_file" in prompt

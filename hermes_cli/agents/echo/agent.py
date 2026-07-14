@@ -45,7 +45,7 @@ from hermes_cli.agents.echo.tools.web_tools import search_web
 # is LEFT UNTOUCHED (two-version rule). check_url is the in-process floor-gate
 # entry called from execute_tools for any tool call with a 'url' param.
 from hermes_cli.agents.echo.tools.seam_safe_fetch import safe_fetch_wrapper, check_url
-# Latin tutor module (2026-07-12, DESIGN.md §7): deterministic-core handlers for
+# Latin tutor module (2026-07-12): deterministic-core handlers for
 # `hermes echo --latin`. Registered as DIRECT SeamedTool (execution_sandbox="none")
 # — a pure in-process call. Reads only LLM-supplied params + the non-protected
 # latin data files / ledger at HERMES_LATIN_DIR. See tools/latin_tools.py +
@@ -968,7 +968,7 @@ def _build_registry(memory_dir: Optional[Path] = None) -> ToolRegistry:
             "`path`)."
         ),
     ))
-    # Latin tutor module (2026-07-12, DESIGN.md §7.2): the deterministic core —
+    # Latin tutor module (2026-07-12): the deterministic core —
     # three LLM-callable SeamedTools whose CORRECTNESS the LLM never owns. All
     # three are DIRECT SeamedTool (execution_sandbox="none") — a pure in-process
     # call. Each reads only LLM-supplied params + the non-protected latin data
@@ -978,18 +978,18 @@ def _build_registry(memory_dir: Optional[Path] = None) -> ToolRegistry:
     # GRAPH NODE (not a tool) reads the same ledger pre-LLM.
     _register_tool(reg, SeamedTool(
         name="latin_validate",
-        description=("Graded correctness gate for a Latin string (DESIGN.md §7.2). "
+        description=("Graded correctness gate for a Latin string. "
                      "Parses with LatinCy, recovers lemmas, attempts deterministic "
                      "macron correction from the curated A&G lexicon, flag-and-warns "
                      "on proper nouns + unknown macronization, rejects only on a true "
                      "parse failure with no lemma recovery. Returns "
                      "{verdict: accept|warn|reject, lemmas, macron_corrections, "
                      "macronized_text, proper_nouns, unknown_vocab, diagnostics}. "
-                     "Call this BEFORE showing any Latin to Coda; the verdict is the "
+                     "Call this BEFORE showing any Latin to the user; the verdict is the "
                      "source of truth, not your own judgment."),
         parameters=[
             {"name": "latin_string", "type": "string", "required": True,
-             "description": "The Latin string to validate (your output or Coda's input)"},
+             "description": "The Latin string to validate (your output or the user's input)"},
             {"name": "context", "type": "string", "required": False,
              "description": "Optional context (e.g. 'translation', 'paradigm drill')"},
         ],
@@ -1012,7 +1012,7 @@ def _build_registry(memory_dir: Optional[Path] = None) -> ToolRegistry:
     _register_tool(reg, SeamedTool(
         name="latin_srs",
         description=("FSRS-6 spaced-repetition scheduling for a Latin card "
-                     "(DESIGN.md §7.2). The FSRS scheduler is the SOLE authority on "
+                     ". The FSRS scheduler is the SOLE authority on "
                      "when a card is next due — never set the schedule yourself. "
                      "Supply card_id + rating (again|hard|good|easy); for a new card "
                      "also supply front + back. Returns {success, card_id, due, reps, "
@@ -1045,7 +1045,7 @@ def _build_registry(memory_dir: Optional[Path] = None) -> ToolRegistry:
     _register_tool(reg, SeamedTool(
         name="latin_paradigm",
         description=("Static finite declension/conjugation tables citing Allen & "
-                     "Greenough (DESIGN.md §7.2/§8.5). Pure lookup — NEVER generate a "
+                     "Greenough. Pure lookup — NEVER generate a "
                      "paradigm yourself. kind='list' enumerates available tables; "
                      "kind='<section>:<id>' (e.g. 'declension:I', "
                      "'conjugation:1_present_active') returns the table cells + the "
@@ -2136,7 +2136,7 @@ def _scan_unvalidated_latin(cleaned: str) -> str:
     per-turn accumulator (drain_validated_latin in tools.latin_tools) holds the
     input + corrected forms the gate actually saw. A macron-bearing word not
     contained in any validated string is the bypass signal — wrong macrons
-    reaching Coda presented as correct. Returns cleaned with a bracketed
+    reaching the user presented as correct. Returns cleaned with a bracketed
     safety notice appended when a bypass is detected; logs a warning either way
     so the event is visible in the session log."""
     try:
@@ -2365,7 +2365,7 @@ def create_echo_graph(latin=None):
 
     Returns a compiled StateGraph ready for graph.invoke(state).
 
-    latin: optional truthy flag (2026-07-12, DESIGN.md S7). When set, a
+    latin: optional truthy flag (2026-07-12). When set, a
     load_latin_state node is inserted at the ENTRY of the turn so the
     paedagogus persona + structured mastery block are available to call_llm:
 

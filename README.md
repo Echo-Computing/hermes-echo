@@ -216,6 +216,16 @@ git config core.hooksPath .githooks
 
 **Honesty note (corrects the v0.3.0 §11 listing):** at v0.3.0 the `--latin` tutor shipped its engine but **no data** — empty paradigm tables, empty lexicon, a one-line fallback persona — so it was effectively a shell. v0.3.1 ships the data subset, making `hermes echo --latin` genuinely usable (full 88-table paradigm drill + ~987-lemma macron gate + the paedagogus persona). Ginn book text (copyrighted), the personal ledger, and the private build seam remain out of the public tree.
 
+### v0.3.2 — public-tree hygiene cleanup (behavior unchanged)
+
+A hygiene-only point release: strip pre-existing private-context residuals from the Latin tutor module's comments, docstrings, tool descriptions, and tests. **No runtime behavior changes** — 438 unit tests pass, same as v0.3.1. Three classes of private context that had shipped since v0.3.0 are removed:
+
+- **`ecce-logos`** (a private third-party Latin cross-check parser codename, 3 references) → generic "the reference Latin parser".
+- **`DESIGN.md §X` provenance pointers** (19 references to a private design doc that is not in the public tree) → stripped; dates and public citations (e.g. Allen & Greenough) are retained.
+- **`Coda`** (the maintainer's personal user handle, 21 references) → generic "the user"; the system prompt no longer hardcodes a specific user's name.
+
+The public tree now contains zero occurrences of these three tokens in tracked files (remaining copies live only in git-ignored local backups and the deliberately-unshipped `latin_data/build/` generators). The two-version rule is unchanged: the affect substrate, the mount-namespace sandbox ceiling, the red-team tool stubs, the dark-web OSINT transport, and ToolPlugin auto-discovery remain private-fork surfaces, not in this release.
+
 ## 12. License and attribution
 
 MIT License. Upstream copyright belongs to the [yasutoshi-lab/Hermes](https://github.com/yasutoshi-lab/Hermes) authors and is retained; fork additions are (c) Echo-Computing, released under the same MIT terms.
