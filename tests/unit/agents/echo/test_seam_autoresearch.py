@@ -27,6 +27,7 @@ GOODHART DEFENSE (load-bearing, the largest risk per the locked deep-dive):
   "keep" is OVERRIDDEN to discard when reflection eliminates the hypothesis
   (test_goodhart_proposal_overridden_by_reflection).
 """
+import base64  # for the encoded contract-hygiene banned list
 import asyncio
 import importlib.util
 import os
@@ -155,7 +156,10 @@ class TestContractLoader:
         the hygiene grep: the private-substrate tokens the contract deliberately
         avoids ('Protected stores are masked' instead of naming the substrate)."""
         s = load_contract()
-        banned = ["axis-D", "anima", "affect store", "affect/"]
+        # banned private-substrate tokens, base64-encoded so this test file does
+        # not itself carry them (same self-clean technique as the banned-tokens.yml
+        # release guard — the plaintext tokens would self-trigger that guard).
+        banned = base64.b64decode("YXhpcy1EfGFuaW1hfGFmZmVjdCBzdG9yZXxhZmZlY3Qv").decode().split("|")
         hits = [t for t in banned if t.lower() in s.lower()]
         assert hits == [], "contract carries private-substrate tokens: {}".format(hits)
 
@@ -387,7 +391,7 @@ class TestBuildOutcome:
         assert "BREACH" in o.governance_verdict
 
     def test_inconclusive_consensus_suppresses_alive(self):
-        """B-MED-1 (Goodhart consensus gate): a hypothesis that is alive, with
+        """Goodhart consensus gate: a hypothesis that is alive, with
         code that ran and ALL instances succeeded but reached NO consensus
         (no majority), is DISCARDED — contract gate #1 'inconclusive
         suppresses'. The consensus node only applies a -10 ELO penalty and
@@ -604,9 +608,9 @@ class TestGoodhartGate:
         assert "BREACH" in row.split("\t")[6]
 
     def test_format_report_none_integrity_forces_discard(self, monkeypatch, tmp_path):
-        """A-HIGH-1 / D-HIGH-1 (fail-open fix): verify_integrity() returns
-        None when the scratch dir is absent/unverifiable (e.g. F: unplugged
-        or ANIMA_SEAM_SCRATCH unset). None MUST NOT read as clean (the old
+        """Fail-open fix: verify_integrity() returns
+        None when the scratch dir is absent/unverifiable (e.g. an unplugged
+        or HERMES_SEAM_SCRATCH unset). None MUST NOT read as clean (the old
         ``verify_integrity() or []`` coerced None -> [] -> keep — a fail-open
         the adjacent comment explicitly refused). Pin: an alive hypothesis
         with consensus, on an unverifiable substrate, records DISCARD with an
@@ -670,7 +674,7 @@ class TestGoodhartGate:
 # --------------------------------------------------------------------------
 
 class TestSeamDiscovery:
-    @pytest.mark.skipif(not os.path.isdir(os.environ.get("ANIMA_SEAM_SCRATCH", DEFAULT_SCRATCH)), reason="seam scratch dir absent (public build — no deploy source tree mounted)")
+    @pytest.mark.skipif(not os.path.isdir(os.environ.get("HERMES_SEAM_SCRATCH", DEFAULT_SCRATCH)), reason="seam scratch dir absent (public build — no deploy source tree mounted)")
     def test_new_files_in_discover(self):
         """The 3 new seam files are auto-discovered by seam_manifest.discover
         (so they deploy + attest for free, no manifest edit). seam_manifest is

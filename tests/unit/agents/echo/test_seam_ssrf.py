@@ -1,4 +1,4 @@
-"""OSIRIS-ssrf (2026-07-06 red-team, Step 1) — tests for the seam-owned SSRF
+"""Seam SSRF guard — tests for the seam-owned SSRF
 guard replacing the upstream web_tools.fetch_url handler (which had ZERO SSRF
 protection: httpx.get(url, follow_redirects=True) fetched 169.254.169.254 /
 127.0.0.1 / ::1 / fc00::/7 with no check).
@@ -23,13 +23,13 @@ Integration tier (``@pytest.mark.integration``, skipped by apply_seam.sh's
 ``-m 'not integration'``): one live fetch of a public url (needs DNS + network;
 ``pytest.skip`` when unreachable).
 
-Leak-probe neutrality: no leak-probe arm supplies a ``url`` param (verified
-2026-07-06), so the floor gate never fires for an arm — the 12/12 leak-probe
+Leak-probe neutrality: no leak-probe arm supplies a ``url`` param,
+so the floor gate never fires for an arm — the 12/12 leak-probe
 suite is unaffected (regression-guarded by the separate ``test_leak_probe.py``).
 """
 import pytest
 
-from hermes_cli.agents.echo.agent import SeamedTool, execute_tools, _build_registry
+from hermes_cli.agents.echo.agent import CertifiedTool, execute_tools, _build_registry
 from hermes_cli.agents.echo.state import EchoState
 from hermes_cli.agents.echo.tools.registry import Tool
 from hermes_cli.agents.echo.tools.seam_safe_fetch import (
@@ -93,18 +93,18 @@ class TestCheckUrlReservedRefusal:
     def test_refuses_deprecated_6to4_anycast(self):
         # 192.88.99.0/24 — deprecated 6to4 anycast (RFC 7526); not always flagged
         # by is_private/is_reserved, so the explicit _REJECTED_V4 list catches it.
-        # 4-lens lens B-finding-f: this gap was open before the re-verify fix.
+        # This gap was open before the re-verify fix.
         assert check_url("http://192.88.99.1/") is not None
 
     def test_refuses_ipv6_documentation_prefix(self):
-        # 2001:db8::/32 — the documentation prefix; 4-lens lens B-finding-f.
+        # 2001:db8::/32 — the documentation prefix.
         assert check_url("http://[2001:db8::1]/") is not None
 
 
 class TestSchemeAllowlist:
     """A non-http(s) scheme is refused fail-closed INDEPENDENT of httpx's scheme
     handling — defense-in-depth so a hostless / local-file target cannot be
-    reached via a redirect Location. 4-lens lens B-finding-b."""
+    reached via a redirect Location."""
 
     def test_refuses_file_scheme(self):
         r = check_url("file:///etc/passwd")
@@ -200,7 +200,7 @@ class TestHandlerReRegistration:
             f"fetch_url handler must be safe_fetch_wrapper, got {_t.handler!r}"
         )
         assert _t.handler.__name__ == "safe_fetch_wrapper"
-        assert _t._affect_cert_ok is True  # construction cert passed (clean)
+        assert _t._handler_cert_ok is True  # construction cert passed (clean)
         assert _t.execution_sandbox == "none"
 
     def test_upstream_fetch_url_symbol_not_dispatched(self):
@@ -219,8 +219,8 @@ class TestHandlerReRegistration:
 # ---------------------------------------------------------------------------
 
 def _clean_url_fetcher(url: str = "") -> str:
-    """Affect-clean dummy handler for the floor-gate tests (the fake registry's
-    execute() ignores the handler, but the SeamedTool construction cert scans
+    """Handler-cert-clean dummy handler for the floor-gate tests (the fake registry's
+    execute() ignores the handler, but the CertifiedTool construction cert scans
     it, so it must be clean)."""
     return f"fetched {url}"
 
@@ -254,13 +254,13 @@ class _FakeReg:
 
 
 def _url_tool():
-    return SeamedTool(
+    return CertifiedTool(
         name="fetch_url",
         description="test url tool",
         parameters=[{"name": "url", "type": "string", "required": True}],
         handler=_clean_url_fetcher,
         guard_source_policy="none",  # no `path` param -> sanity permits "none"
-        requires_affect_cert=True,
+        requires_handler_cert=True,
         execution_sandbox="none",   # routes to in-process registry.execute
         execution_sandbox_rationale="test: in-process dummy",
     )
@@ -331,7 +331,7 @@ class TestFloorGate:
         """A tool call with NO 'url' param must NOT trip the floor gate (the
         param-key scan is a no-op when url is absent). A memory call (no url)
         is unaffected — leak-probe-neutral."""
-        tool = SeamedTool(
+        tool = CertifiedTool(
             name="memory",
             description="mem",
             parameters=[{"name": "action", "type": "string", "required": True}],
@@ -373,7 +373,7 @@ class TestRateLimit:
         assert check_url("http://1.1.1.1/") is None, "per-IP limit must not be global"
 
     def test_rate_limit_v4_and_v4_mapped_share_bucket(self):
-        """4-lens lens B-finding-e: a public IP given as a v4 literal vs an
+        """A public IP given as a v4 literal vs an
         IPv4-mapped-v6 literal must key the SAME rate-limit bucket (the canonical
         unwrapped form). Otherwise alternating forms doubles the limit to 40/60s.
         ::ffff:93.184.216.34 unwraps to 93.184.216.34 — same bucket."""

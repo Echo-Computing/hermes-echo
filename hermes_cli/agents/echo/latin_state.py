@@ -10,10 +10,10 @@ process_input -> load_latin_state -> call_llm (see create_echo_graph).
 This node reads ONLY the non-protected latin ledger at HERMES_LATIN_DIR
 (a sibling of the protected stores, NOT a protected store itself). It imports
 no private safety package. It is a graph node (same tier as
-process_input/format_response) — not a SeamedTool handler, so it is not
-AST-affect-attested, but verify_integrity covers it (seam file) and the
+process_input/format_response) — not a CertifiedTool handler, so it is not
+AST-handler-cert-attested, but verify_integrity covers it (seam file) and the
 latin_state value it produces flows into call_llm which IS attested (reads no
-banned affect field; assert_state_keys_clean_for_prompt permits the
+banned protected field; assert_state_keys_clean_for_prompt permits the
 'latin_state' key). The ledger is owned by the latin tools (latin_srs/
 latin_validate write; this node only reads).
 
@@ -32,7 +32,7 @@ _log = logging.getLogger(__name__)
 
 _DEFAULT_LATIN_DIR = os.path.join(os.path.expanduser("~"), ".hermes", "latin")
 
-# F9 (2026-07-13 red-team, Cluster 2 structural stop): id-list fields rendered
+# F9 (Cluster 2 structural stop): id-list fields rendered
 # into the <latin_state> block (weak_spots, paradigm_only_flags) and skill keys
 # are attacker-controlled ledger content. A poisoned ledger could otherwise
 # inject fence tokens (<<<UNTRUSTED_MEMORY>>>), angle brackets, or tool-call
@@ -137,7 +137,7 @@ def _read_ledger() -> Dict[str, Any]:
     """Read the ledger; cold-start + persist a default if absent. Falls back to
     an in-memory default if the ledger is corrupt or the FS is unwritable.
 
-    F11 (2026-07-13 red-team, Cluster 2): corruption is NON-SILENT. The prior
+    F11 (Cluster 2): corruption is NON-SILENT. The prior
     bare ``except Exception: return _default_ledger()`` swallowed a corrupt
     ledger and substituted a fresh default with no signal — the user would lose all
     mastery/SRS progress and never know. Now a corrupt ledger logs a WARNING

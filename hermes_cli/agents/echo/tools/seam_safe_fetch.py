@@ -1,4 +1,4 @@
-"""OSIRIS-ssrf seam guard (2026-07-06 red-team) — SSRF defense for fetch_url.
+"""Seam SSRF guard — SSRF defense for fetch_url.
 
 Replaces the upstream ``web_tools.fetch_url`` handler (ZERO SSRF protection:
 ``httpx.get(url, follow_redirects=True)`` resolved + fetched ANY url including
@@ -67,8 +67,7 @@ connects to the pinned IP (pin holds), but a malicious proxy could re-resolve th
 UPSTREAM ``web_tools.py`` is LEFT UNTOUCHED (two-version rule): the seam re-
 registers ``fetch_url`` with ``handler=safe_fetch_wrapper`` in ``_build_registry``;
 the upstream ``fetch_url`` symbol is no longer dispatched. No cloud LLM, no
-attribution (the public "OSIRIS" repo is an unrelated Solana token-pump ad —
-never credited; this is a seam-owned SSRF guard, not a port of that repo).
+attribution (this is a seam-owned SSRF guard, not a port of any external repo).
 
 Public-safe: stdlib ``ipaddress``/``socket``/``re``/``time`` + ``httpx`` only, no
 private substrate import, no private substrate read (cert-clean). Import-pure

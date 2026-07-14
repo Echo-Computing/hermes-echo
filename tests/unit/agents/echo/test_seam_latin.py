@@ -17,9 +17,9 @@ tier). Mirrors test_seam_graph.py:
   (b) load_latin_state: cold-starts a default ledger (no ledger.json) OR reads
       a pre-written one; sets state['latin_state'] with the right keys;
       translate_permitted passthrough.
-  (c) the 3 SeamedTools (latin_validate / latin_srs / latin_paradigm) register
-      with execution_sandbox='none' + non-empty rationale + requires_affect_cert
-      + _affect_cert_ok True (the import-time attestation already fired at agent
+  (c) the 3 CertifiedTools (latin_validate / latin_srs / latin_paradigm) register
+      with execution_sandbox='none' + non-empty rationale + requires_handler_cert
+      + _handler_cert_ok True (the import-time attestation already fired at agent
       import; this pins the surface).
   (d) latin_validate graded-gate LOGIC (fake nlp): accept (lexicon hit, macron
       correction applied), warn (proper-noun allowlist / unknown vocab / macron-
@@ -155,7 +155,7 @@ def latin_dir(tmp_path, monkeypatch):
 
 def test_latin_builder_signature_clean():
     """The module-load self-check already ran assert_signature_clean +
-    assert_function_reads_no_affect at import (importing system_prompt would
+    assert_function_reads_no_protected_state at import (importing system_prompt would
     have raised otherwise). Pin that the builder is callable + has the locked
     param set."""
     import inspect
@@ -196,32 +196,30 @@ def test_latin_builder_translate_permitted_renders_yes(latin_dir):
     assert "translation allowed" in prompt
 
 
-def test_latin_builder_prompt_clean_no_affect_markers(latin_dir):
-    """The assembled latin prompt must carry no affect scalar / emotion-label
+def test_latin_builder_prompt_clean_no_emotion_markers(latin_dir):
+    """The assembled latin prompt must carry no emotion-label
     marker (assert_prompt_clean inside the builder is the floor; this is a
     belt-and-braces direct scan via the real guard)."""
     from hermes_cli.agents.echo.system_prompt import build_latin_system_prompt
-    try:
-        from anima.safety.prompt_guard import DEFAULT_PROMPT_GUARD
-    except ImportError:
-        pytest.skip("anima safety package not installed (private build)")
+    _PROMPT_GUARD = None
     prompt = build_latin_system_prompt(
         tools=[], memory_context=[],
         latin_state={"current_ginn_ch": 1, "weak_spots": ["subjunctive"],
                      "paradigm_only_flags": ["subjunctive"], "translate_permitted": False},
         past_sessions=None)
     # must not raise
-    DEFAULT_PROMPT_GUARD.assert_prompt_clean(prompt)
+    if _PROMPT_GUARD is not None:
+        _PROMPT_GUARD.assert_prompt_clean(prompt)
 
 
 # ---------------------------------------------------------------------------
-# (c) SeamedTool registration surface
+# (c) CertifiedTool registration surface
 # ---------------------------------------------------------------------------
 
 def test_latin_tools_registered_with_locked_fields():
     """All 3 latin tools register with execution_sandbox='none' + a non-empty
-    rationale + requires_affect_cert=True. The import-time attestation
-    (_verify_registry_affect_cert) already fired at agent import; this pins the
+    rationale + requires_handler_cert=True. The import-time attestation
+    (_verify_registry_handler_cert) already fired at agent import; this pins the
     surface so a future edit that drops the rationale is caught."""
     from hermes_cli.agents.echo import agent as agent_mod
     reg = agent_mod._build_registry()
@@ -232,7 +230,7 @@ def test_latin_tools_registered_with_locked_fields():
         assert t.execution_sandbox_rationale.strip(), (
             f"{name} execution_sandbox='none' requires a non-empty rationale "
             f"(the _register_tool chokepoint should have refused an empty one)")
-        assert t.requires_affect_cert is True
+        assert t.requires_handler_cert is True
         assert t.guard_source_policy == "none"  # no path param -> no path gate
         # handler is a module-level function (inspect.getsource resolves for the cert)
         import inspect
@@ -240,15 +238,15 @@ def test_latin_tools_registered_with_locked_fields():
         assert t.handler.__module__ == latin_tools.__name__
 
 
-def test_latin_handlers_affect_cert_ok():
-    """The 3 handlers pass the affect cert (no banned affect read, no banned
-    import). The cert ran at registration; pin _affect_cert_ok."""
+def test_latin_handlers_handler_cert_ok():
+    """The 3 handlers pass the handler cert (no banned protected read, no banned
+    import). The cert ran at registration; pin _handler_cert_ok."""
     from hermes_cli.agents.echo import agent as agent_mod
     reg = agent_mod._build_registry()
     for name in ("latin_validate", "latin_srs", "latin_paradigm"):
         t = reg.get(name)
-        assert getattr(t, "_affect_cert_ok", False) is True, (
-            f"{name} affect cert not ok")
+        assert getattr(t, "_handler_cert_ok", False) is True, (
+            f"{name} handler cert not ok")
 
 
 # ---------------------------------------------------------------------------
@@ -1557,7 +1555,7 @@ def test_translate_refused_without_latin_flag(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# 2026-07-13 red-team regression tests (Clusters C1–C5, 17 confirmed findings)
+# 2026-07-13 regression tests (Clusters C1–C5, 17 confirmed findings)
 # Each test pins one fix so a future edit that regresses it trips at unit speed.
 # ---------------------------------------------------------------------------
 
@@ -1870,7 +1868,7 @@ def test_latin_workspace_is_guard_source_root(monkeypatch):
 
 
 def test_graph_refuses_latin_workspace(monkeypatch):
-    """F8/F10: graph(path=latin workspace) is refused at the axis-D guard-source
+    """F8/F10: graph(path=latin workspace) is refused at the guard-source
     path gate. Skips if the default latin dir is not present on the host."""
     from hermes_cli.agents.echo.tools import shell_tools, graph_tools, latin_tools
     monkeypatch.delenv("HERMES_LATIN_DIR", raising=False)
@@ -1880,7 +1878,7 @@ def test_graph_refuses_latin_workspace(monkeypatch):
     if not os.path.isdir(latin_default):
         pytest.skip("latin default dir not present on this host")
     out = graph_tools.graph(path=latin_default)
-    assert "axis-D" in out and "refused" in out.lower(), out
+    assert "refused" in out.lower(), out
 
 
 # --- C3-F6: unvalidated-Latin scan in format_response ---

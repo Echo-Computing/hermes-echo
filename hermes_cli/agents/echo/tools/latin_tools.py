@@ -1,4 +1,4 @@
-"""Latin deterministic-core SeamedTool handlers (seam).
+"""Latin deterministic-core CertifiedTool handlers (seam).
 
 Correctness-critical operations that NEVER trust the LLM:
   - latin_validate : graded gate — LatinCy parse + macron lexicon + proper-noun
@@ -12,16 +12,16 @@ Handlers read only LLM-supplied params + the non-protected latin data
 files (macron_lexicon.json, proper_nouns.json, paradigm_tables.json) + the
 non-protected latin ledger at HERMES_LATIN_DIR (a sibling of the protected
 stores, NOT a protected store itself). No private safety package import, no
-banned affect field read, no protected-store path string constant. spaCy +
+banned protected-state field read, no protected-store path string constant. spaCy +
 fsrs are lazy-imported on first use (the ~500MB la_core_web_lg loads on the
 first latin_validate call, NOT at module import — keeps Hermes import fast
 and keeps the model out of the venv path for non-latin graphs). Each handler
-is module-level so inspect.getsource resolves for the SeamedTool affect-cert
-(scan_function_for_affect at registration + the import-time
-_verify_registry_affect_cert attestation).
+is module-level so inspect.getsource resolves for the CertifiedTool handler-cert
+(scan_function_for_handler at registration + the import-time
+_verify_registry_handler_cert attestation).
 
-Registered in agent.py _build_registry as DIRECT SeamedTool(...,
-execution_sandbox="none", requires_affect_cert=True) — NOT a ToolPlugin (a
+Registered in agent.py _build_registry as DIRECT CertifiedTool(...,
+execution_sandbox="none", requires_handler_cert=True) — NOT a ToolPlugin (a
 mount-namespace ceiling is not in the public build).
 The ledger I/O helpers here are the canonical writer; latin_state.py imports
 the read helper for its pre-LLM graph node.
@@ -53,7 +53,7 @@ _MACRON_MAP = str.maketrans({
 })
 _COMBINING_MACRON = "̄"
 
-# DoS bounds (2026-07-13 red-team, Cluster 4):
+# DoS bounds:
 # MAX_LATIN_VALIDATE_CHARS — application-level cap on the latin_string passed to
 # latin_validate BEFORE the O(n) LatinCy spaCy parse. spaCy's own max_length
 # (1,000,000) is the sole bound without this, and a single ~500KB call blocks
@@ -70,7 +70,7 @@ MAX_LATIN_VALIDATE_CHARS = 8000
 # tutor actually surfaces. (F16.)
 MAX_ERROR_PATTERNS = 500
 
-# F13 (2026-07-13 red-team, Cluster 3): the vowel set used to make the reject
+# F13: the vowel set used to make the reject
 # path meaningful. LatinCy is a statistical tagger that assigns a lemma+POS to
 # EVERY token (including gibberish like 'asdf'), so the prior `not any_lemma`
 # reject branch was effectively dead code for any non-empty string. With a
@@ -85,13 +85,13 @@ MAX_ERROR_PATTERNS = 500
 # docstring + paedagogus.md are honest about this).
 _LATIN_VOWELS = set("aeiouyāēīōūȳAEIOUYĀĒĪŌŪȲ")
 
-# F6 (2026-07-13 red-team, Cluster 3): per-turn accumulator of the Latin strings
+# F6: per-turn accumulator of the Latin strings
 # the LLM actually ran through latin_validate (input + macron-corrected output
 # forms). format_response drains this to warn when the LLM emitted macronized
 # Latin in its response WITHOUT going through the gate — the bypass that would
 # let wrong macrons reach the user presented as correct. Cleared each format_response
 # drain, so it is scoped to one turn (the CLI processes one turn at a time).
-# Module-level (not state-threaded) because SeamedTool handlers receive only
+# Module-level (not state-threaded) because CertifiedTool handlers receive only
 # params, not EchoState, and threading it through execute_tools would touch the
 # attested dispatch path. This is a WARNING net only; the deterministic core
 # remains the source of truth for validated strings.
@@ -269,7 +269,7 @@ def _record_error_pattern(ledger: Dict[str, Any], pattern: str) -> None:
             ep["last_seen"] = now
             return
     patterns.append({"pattern": pattern, "count": 1, "last_seen": now})
-    # F16 (2026-07-13 red-team, Cluster 4): bound the list. Evict the single
+    # F16: bound the list. Evict the single
     # least-frequent entry (lowest count, tie-break oldest last_seen) when the
     # cap is exceeded, so the ledger cannot grow without bound via distinct form
     # strings. Preserves the most-frequent / most-recent patterns the tutor
@@ -313,7 +313,7 @@ def latin_validate(latin_string: str, context: Optional[str] = None) -> Dict[str
     true parse failure (no lemma) OR on non-Latin input (no Latin vowel in any
     token) OR on an oversized/empty string (DoS / empty guards).
 
-    HONEST SCOPE (2026-07-13 red-team, F13): this is a parse-RECOVERY + macron-
+    HONEST SCOPE (F13): this is a parse-RECOVERY + macron-
     CORRECTION + vocab-RECOGNITION gate, NOT a grammatical correctness gate. It
     cannot detect agreement / case / tense / voice errors — LatinCy recovers a
     lemma for almost any token (including gibberish), so wrong-but-parseable
@@ -330,7 +330,7 @@ def latin_validate(latin_string: str, context: Optional[str] = None) -> Dict[str
         return {"verdict": "reject", "lemmas": [], "macron_corrections": [],
                 "macronized_text": "", "proper_nouns": [], "unknown_vocab": [],
                 "diagnostics": ["empty input"]}
-    # F12 (2026-07-13 red-team, Cluster 4): bound the O(n) LatinCy parse. Reject
+    # F12: bound the O(n) LatinCy parse. Reject
     # instantly on an oversized string instead of blocking the in-process agent
     # thread for tens of seconds. 8000 chars is far beyond any real tutor passage.
     if len(latin_string) > MAX_LATIN_VALIDATE_CHARS:

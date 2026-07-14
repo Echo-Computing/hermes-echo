@@ -3,7 +3,7 @@
 ``run_shell`` executes the agent's command as a direct subprocess with a
 wall-clock timeout + protected-roots/guard-source path gates. The
 mount-namespace ceiling is not in the public build; the floor gates (timeout,
-protected-store path gate, guard-source path gate, affect-cert) remain.
+protected-store path gate, guard-source path gate, handler-cert) remain.
 """
 
 import os
@@ -19,7 +19,7 @@ _HOME = os.path.expanduser("~")
 
 # Single source of truth for the protected-store PATHS (canonical spellings),
 # shared by _PROTECTED_STORE_ROOTS (realpath-level, for the agent.py matcher
-# containment). The public build ships with no private affect/cred stores, so
+# containment). The public build ships with no private cred stores, so
 # this tuple is empty -- the protected-store gate is an inert floor, retained
 # for extensibility so an operator wiring a private store gets the gate for
 # free.
@@ -30,8 +30,8 @@ _PROTECTED_STORE_PATHS: tuple = ()
 # matcher judges the resolved location, not the spelling.
 _PROTECTED_STORE_ROOTS = tuple(os.path.realpath(p) for p in _PROTECTED_STORE_PATHS)
 
-# Guard-source ROOTS (anti-tampering, F1 + PR2): the dirs whose editing would let
-# the tool-capable LLM rewrite its own axis-D guard (refusal block, affect-cert).
+# Guard-source ROOTS (anti-tampering): the dirs whose editing would let
+# the tool-capable LLM rewrite its own integrity guard (refusal block, handler-cert).
 # Single-sourced HERE (next to _protected_roots) because shell_tools imports
 # neither agent.py nor search_tools -- both import _guard_source_roots from
 # here, avoiding the agent.py<->search_tools cycle. realpath so a seam behind a
@@ -42,7 +42,7 @@ _GUARD_SOURCE_ROOTS = tuple(
     for p in (
         os.path.join(_HOME, "hermes-echo", "hermes_cli", "agents", "echo"),  # live seam
         os.path.join(_HOME, "hermes-echo", ".venv"),                        # deployed safety pkg
-        # F8/F10 (2026-07-13 red-team, Cluster 2): the latin workspace is a
+        # The latin workspace is a
         # TRUSTED prompt-conditioning source. paedagogus.md is interpolated
         # RAW at the top of the --latin SYSTEM prompt (build_latin_system_prompt
         # loads it at build time); ledger.json fields render into the
@@ -75,13 +75,13 @@ def _path_is_contained_in_root(p: str, root: str, allow_ancestor: bool) -> bool:
       inside-or-equal: commonpath([p, root]) == root   (p is root or under it)
       ancestor:        commonpath([p, root]) == p and p != root  (p is above root)
 
-    E-1 (axis_d_paths, 2026-07-06 red-team): this is the SINGLE commonpath-based
+    This is the SINGLE commonpath-based
     containment primitive, owned by shell_tools (the cycle-free root that already
     owns ``_protected_roots`` / ``_guard_source_roots``). agent.py's
     protected-store matcher + guard-source reference check, and search_tools'
     resolved-in-protected-root check, all call THIS leaf instead of each
-    inlining their own ``os.path.commonpath`` (the 3-way duplication the
-    red-team flagged). shell_tools imports neither agent.py nor search_tools, so
+    inlining their own ``os.path.commonpath`` (the 3-way duplication that
+    motivated this refactor). shell_tools imports neither agent.py nor search_tools, so
     there is no import cycle. The ancestor case closes parent-walk exfil
     (search_code/grep/find on a parent dir that contains the store). A sibling
     dir (e.g. ~/.hermes/memory) is NOT contained -- commonpath is the shared

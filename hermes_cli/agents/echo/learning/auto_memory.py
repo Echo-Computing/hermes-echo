@@ -9,15 +9,12 @@ from loguru import logger
 
 from hermes_cli.agents.echo.memory import MemoryStore
 
-# v0.3.1 (axis-D fence into the learning loop): scan the constructed messages
+# v0.3.1 (integrity guard fence into the learning loop): scan the constructed messages
 # before the consolidation Ollama call (the call_llm fence previously stopped
-# at the main loop). No-op in the public build (anima safety package absent ->
-# _PROMPT_GUARD is None); a raise is caught by the surrounding try -> best-effort
-# skip (returns False), never blocks the user.
-try:
-    from anima.safety.prompt_guard import DEFAULT_PROMPT_GUARD as _PROMPT_GUARD
-except ImportError:
-    _PROMPT_GUARD = None
+# at the main loop). No-op in the public build (_PROMPT_GUARD is None); a raise
+# is caught by the surrounding try -> best-effort skip (returns False), never
+# blocks the user.
+_PROMPT_GUARD = None
 
 
 def build_auto_memory_prompt(fact_text: str) -> str:

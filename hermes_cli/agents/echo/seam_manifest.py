@@ -1,4 +1,4 @@
-"""P0-9 (2026-07-06 red-team) — single source of truth for the axis-D seam.
+"""Single source of truth for the integrity-guard seam.
 
 Two consumers share this module so the seam file list CANNOT drift between them
 (the echo_cmd.py-was-copied-but-not-attested gap is the precedent this closes):
@@ -9,8 +9,8 @@ Two consumers share this module so the seam file list CANNOT drift between them
   2. agent.py (runtime, module-load self-check): calls verify_integrity() to
      re-hash every seam file scratch-vs-live and raise if any diverge — the
      runtime counterpart to apply_seam.sh's deploy-time attestation, so a
-     stale/partial/hand-edited deploy (e.g. a reverted P0-1/P0-3 fix that
-     reopens an axis-D exfil channel) fails closed at import instead of
+     stale/partial/hand-edited deploy (e.g. a reverted integrity-guard fix that
+     reopens an exfil channel) fails closed at import instead of
      silently running an un-sandboxed code_execution node.
 
 Threat model: ACCIDENTAL DRIFT / STALE DEPLOY, NOT a tampering attacker (the
@@ -46,7 +46,7 @@ _NON_SEAM_PARTS = {"__pycache__", "seam-tests"}
 #   echo_cmd.py  lives in commands/, not agents/echo/.
 # Each legacy exception MUST be listed here — omitting one silently drops that
 # seam on a fresh restore (the v2 breach class the apply_seam.sh header warns
-# of). Verified against the live tree 2026-07-06.
+# of). Verified against the live tree.
 _OVERRIDES = {
     "echo_cmd.py": "commands/echo_cmd.py",
 }
@@ -74,8 +74,8 @@ def discover(scratch_dir: Optional[str] = None) -> List[Tuple[str, str]]:
     and _<lower> helper scripts. Returns a sorted, deterministic list. Raises
     if scratch is absent or contains no seam .py files — a deploy with no
     source of truth must fail closed, not silently deploy nothing and pass a
-    vacuous attestation (the false-green-stale-deploy vector P0-9 closes)."""
-    scratch = Path(scratch_dir or os.environ.get("ANIMA_SEAM_SCRATCH", DEFAULT_SCRATCH))
+    vacuous attestation (the false-green-stale-deploy vector this closes)."""
+    scratch = Path(scratch_dir or os.environ.get("HERMES_SEAM_SCRATCH", DEFAULT_SCRATCH))
     if not scratch.is_dir():
         raise FileNotFoundError(
             f"seam scratch dir absent: {scratch}. Cannot discover seam file "
@@ -112,14 +112,15 @@ def verify_integrity(
     live_root: Optional[str] = None,
 ) -> Optional[List[Tuple[str, str, str]]]:
     """Re-hash every seam source file scratch-vs-live. Returns:
-      - None  if scratch is absent (unverifiable — F: unplugged; agent.py's
-              anima import would already have failed in that case, so this is
-              defensive). Caller SOFT-FAILS (warn), does NOT raise — avoid
+      - None  if scratch is absent (unverifiable — the source-of-truth path
+              is missing; agent.py's guard import would already have failed
+              in that case, so this is defensive). Caller SOFT-FAILS (warn),
+              does NOT raise — avoid
               locking the operator out of the agent on a portable deploy.
       - []    if every live seam file is byte-identical (CRLF-normalized) to
               its scratch source (clean deploy).
       - [(live_rel, scratch_hash, live_hash_or_'MISSING'), ...]  for each
-              divergent file (stale/partial/hand-edited deploy = axis-D breach).
+              divergent file (stale/partial/hand-edited deploy = integrity breach).
               Caller HARD-FAILS (raise) — same doctrine as the prompt-guard
               module-load checks in agent.py.
 
@@ -127,7 +128,7 @@ def verify_integrity(
     copy of this module cannot hide a newly-added seam file. Never logs or
     returns file contents — only relative paths + 12-hex prefixes (no new
     exfil channel through the log sink)."""
-    scratch = Path(scratch_dir or os.environ.get("ANIMA_SEAM_SCRATCH", DEFAULT_SCRATCH))
+    scratch = Path(scratch_dir or os.environ.get("HERMES_SEAM_SCRATCH", DEFAULT_SCRATCH))
     if not scratch.is_dir():
         return None  # unverifiable (env), NOT a mismatch — caller soft-fails
     # LIVE_ROOT = the hermes_cli/ dir. This module lives at

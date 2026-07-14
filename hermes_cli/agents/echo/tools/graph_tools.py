@@ -1,7 +1,7 @@
 """Code-structure graph tool for the Echo agent (Graphify — Step 2 of the
 recommended-order addon build, 2026-07-07).
 
-DECISION-LOCKED (see [[hermes_echo_addon_eval_2026-07-06]] — all 6 pre-build
+DECISION-LOCKED (all 6 pre-build
 confirmations LOCKED):
 
 - BUILD-LEANER from tree-sitter + networkx, NOT vendored. The vendored graphify
@@ -19,7 +19,7 @@ confirmations LOCKED):
   public build; in-process writes to the graph store persist freely.
 - ``query`` param is a DSL / node-id, NEVER a raw fs path. The guard-source path-
   gate inspects ONLY the ``path`` param; a path-shaped ``query`` would NOT be
-  gate-checked (the deep-dive's KEY axis-D risk). The LOAD-BEARING mitigation is
+  gate-checked (the deep-dive's KEY integrity-guard risk). The LOAD-BEARING mitigation is
   that ``_run_query`` does NO filesystem I/O — it resolves ONLY against already-
   built graph nodes (a path-shaped query cannot reach the FS even if it slips the
   ``_looks_like_path`` defense-in-depth check, because the resolver matches node
@@ -146,14 +146,14 @@ def _refuse_path(resolved: str) -> str:
     """Refusal string for a path that resolves to a protected store / guard
     source / ancestor. Names 'protected store' so a leak-probe arm can match on
     it (consistent with search_code._search_refused_message)."""
-    return (f"axis-D: graph refused — base path resolves to a protected store "
+    return (f"integrity guard: graph refused — base path resolves to a protected store "
             f"or guard source or its ancestor ({resolved!r}). The tool-capable "
-            f"LLM must not graph the axis-D substrate. Use a workspace path.")
+            f"LLM must not graph the integrity-guard substrate. Use a workspace path.")
 
 
 def _containment_check(path: Optional[str]) -> Optional[str]:
     """Return a refusal string if ``path`` resolves to a protected store / guard
-    source / ancestor (the axis-D containment pre-check). Returns None if OK.
+    source / ancestor (the integrity-guard containment pre-check). Returns None if OK.
 
     ``allow_ancestor=True`` so a base ABOVE a store (e.g. ``~`` / ``/home``)
     is refused — a recursive parse from there would rglob the stores into the
@@ -832,7 +832,7 @@ def _run_query(g: nx.DiGraph, query: str, depth: int) -> str:
                 f"'community:foo', 'explain:foo'.")
 
     if _looks_like_path(q):
-        return ("axis-D: graph query refused — the query looks like a filesystem "
+        return ("integrity guard: graph query refused — the query looks like a filesystem "
                 "path. The `query` param is a DSL / node-id, not a path; use the "
                 "`path` param for the repo root.")
 
@@ -970,7 +970,7 @@ def graph(path: Optional[str] = None, action: str = "query",
           query: Optional[str] = None, depth: int = DEFAULT_DEPTH) -> str:
     """Build + query a code-structure graph for a Python repo.
 
-    params (per the registered SeamedTool schema):
+    params (per the registered CertifiedTool schema):
       path   — repo root to graph (required; guard-source-gated; the containment
                pre-check refuses a protected store / guard source / ancestor).
       action — query | rebuild | explain (default query). ``rebuild`` forces a
@@ -995,7 +995,7 @@ def graph(path: Optional[str] = None, action: str = "query",
                 "tree-sitter-python, networkx) to enable this tool. The tool is "
                 "dormant in this env; the rest of the agent is unaffected.")
 
-    # 1. axis-D containment pre-check (the `path` param entry point).
+    # 1. integrity-guard containment pre-check (the `path` param entry point).
     refusal = _containment_check(path)
     if refusal is not None:
         return refusal

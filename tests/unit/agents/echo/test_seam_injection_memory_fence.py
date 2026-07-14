@@ -1,5 +1,4 @@
-"""Orchestrator-injection-cluster Commit 2 (2026-07-06 red-team, audit #10) —
-tests for the UNTRUSTED_MEMORY read-path fence on the Loaded Memory + Relevant
+"""Tests for the UNTRUSTED_MEMORY read-path fence on the Loaded Memory + Relevant
 Past Sessions sections of the SYSTEM prompt.
 
 Memory entries (top-3 search hits, frontmatter name+description) and past-
@@ -17,18 +16,15 @@ These tests pin:
   (a) the Loaded Memory section is wrapped in <<<UNTRUSTED_MEMORY>>> fences +
       a trust note, with NO content stripped (every memory line still present);
   (b) the Relevant Past Sessions section is fenced identically (asymmetric
-      fencing would be a red-team bypass — same ownership, same surface);
+      fencing would be an injection bypass — same ownership, same surface);
   (c) build_system_prompt still passes assert_prompt_clean (the fence tokens
-      carry no affect marker — no false-positive brick on the system prompt).
+      carry no protected marker — no false-positive brick on the system prompt).
 """
 import pytest
 
 from hermes_cli.agents.echo.system_prompt import build_system_prompt
 
-try:
-    from anima.safety.prompt_guard import DEFAULT_PROMPT_GUARD as _GUARD
-except ImportError:
-    _GUARD = None
+_GUARD = None
 
 
 class TestLoadedMemoryFenced:
@@ -70,18 +66,18 @@ class TestLoadedMemoryFenced:
 class TestPastSessionsFenced:
     def test_past_sessions_section_is_fenced(self):
         """The ## Relevant Past Sessions section is fenced IDENTICALLY to
-        Loaded Memory (asymmetric fencing would be a red-team bypass — both are
+        Loaded Memory (asymmetric fencing would be an injection bypass — both are
         agent-authored disk-loaded context interpolated into the SYSTEM prompt)."""
         prompt = build_system_prompt(
             [], [], exploration_mode=False,
-            past_sessions=["Session 42: debugged the leak-probe", "Session 7: P0-8 close-out"],
+            past_sessions=["Session 42: debugged the leak-probe", "Session 7: fence close-out"],
         )
         assert "## Relevant Past Sessions" in prompt
         assert "<<<UNTRUSTED_MEMORY>>>" in prompt  # same fence token
         assert "<<</UNTRUSTED_MEMORY>>>" in prompt
         # Both past-session lines survive (no data loss)
         assert "Session 42: debugged the leak-probe" in prompt
-        assert "Session 7: P0-8 close-out" in prompt
+        assert "Session 7: fence close-out" in prompt
 
     def test_empty_past_sessions_no_section(self):
         prompt = build_system_prompt([], [], past_sessions=None)
@@ -90,19 +86,19 @@ class TestPastSessionsFenced:
 
 class TestNoSystemPromptBrick:
     def test_fenced_system_prompt_passes_assert_prompt_clean(self):
-        """The fence tokens + trust notes carry no affect marker, so the
+        """The fence tokens + trust notes carry no protected marker, so the
         assembled system prompt (with memory + past sessions fenced) still
         passes assert_prompt_clean — no false-positive brick on the SYSTEM
-        conditioning path. (The guard scans affect markers only; there is no
+        conditioning path. (The guard scans protected markers only; there is no
         instruction scan — that is the deferred surface.)"""
         prompt = build_system_prompt(
             [],
             ["pref: terse", "proj: chess"],
-            past_sessions=["s1: leak-probe", "s2: P0-8"],
+            past_sessions=["s1: leak-probe", "s2: fence review"],
         )
         # Must not raise.
         if _GUARD is None:
-            pytest.skip("anima safety package not installed (private build)")
+            pytest.skip("safety guard not installed in this build")
         _GUARD.assert_prompt_clean(prompt)
         # Sanity: the fences are actually present (else the test is vacuous).
         assert prompt.count("<<<UNTRUSTED_MEMORY>>>") >= 2
@@ -110,7 +106,7 @@ class TestNoSystemPromptBrick:
 
 
 class TestFenceTokenInjectionEscapability:
-    """4-lens C (2026-07-06): a memory entry / past-session line could itself
+    """A memory entry / past-session line could itself
     contain a literal fence token (a poisoner writing a memory description via
     `memory write` can embed <<</UNTRUSTED_MEMORY>>> to break out of the
     untrusted region and inject trusted-scope directives). _neutralize_memory_fence
@@ -134,7 +130,7 @@ class TestFenceTokenInjectionEscapability:
             "injected open token not neutralized"
         )
         assert prompt.count("<<</UNTRUSTED_MEMORY>>>") == 1, (
-            "injected close tag not neutralized -> escapable (4-lens C)"
+            "injected close tag not neutralized -> escapable"
         )
         _open = prompt.index("<<<UNTRUSTED_MEMORY>>>")
         _close = prompt.index("<<</UNTRUSTED_MEMORY>>>")

@@ -1,7 +1,6 @@
-"""P0-2 (2026-07-06 red-team, finding research-recursion-limit-vs-max-rounds):
-regression tests for the scaled recursion_limit + partial-state dump.
+"""Regression tests for the scaled recursion_limit + partial-state dump.
 
-P0-9 (2026-07-06): moved into the seam-tests scratch
+Kept in the seam-tests scratch
 (.hermes-edit/seam-tests/tests/unit/agents/echo/) and namespaced ``test_seam_*``
 so it survives a fresh WSL re-import + apply_seam.sh (it previously lived only
 in the live clone and would have been lost). apply_seam.sh copies + runs this as
@@ -57,7 +56,7 @@ class TestPartialStateDump:
 
 
 class TestPartialCaptureOnRecursionError:
-    """The load-bearing P0-2 path: when the graph raises mid-stream, the last
+    """The load-bearing path: when the graph raises mid-stream, the last
     yielded state is saved as a partial report (no data loss)."""
 
     def _fake_config(self):

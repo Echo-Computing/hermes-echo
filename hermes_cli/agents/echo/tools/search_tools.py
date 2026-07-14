@@ -1,7 +1,7 @@
 """Code search tools for the Echo agent.
 
-Axis-D closure (PR1, post-PR#1 red-team re-run 2026-07-01): ``search_code`` was
-the unsandboxed recursive-read residual. PR #1's ``allow_ancestor=has_sep`` gate,
+Containment guard closure: ``search_code`` was
+the unsandboxed recursive-read residual. The prior ``allow_ancestor=has_sep`` gate,
 applied tool-agnostically in ``agent.py``'s matcher, re-opened the parent-walk
 closure for THIS handler: ``grep -r`` (raw subprocess) from ``cwd=home``
 rglobs protected store files into the tool-capable LLM, and the matcher's
@@ -9,7 +9,7 @@ ancestor rule never fired for ``search_code`` because ``has_sep`` was the wrong
 policy for a recursive read (parent-walk IS the attack for search, not a legit
 ``cd ~``).
 
-PR1 closes it via a containment pre-check at the top of ``search_code``: resolve
+A containment pre-check at the top of ``search_code`` closes it: resolve
 ``base_path`` (``expanduser`` + ``realpath``) and refuse if it is equal-to /
 inside / an **ancestor** of any ``_protected_roots()``. This is the load-bearing
 closure for the omitted-``path`` / ``path='.'`` / ``'..'`` / ``'~'`` cases the
@@ -35,11 +35,11 @@ from hermes_cli.agents.echo.tools.shell_tools import (
 def _resolved_in_protected_root(resolved: str, roots: tuple,
                                 allow_ancestor: bool = True) -> bool:
     """True if ``resolved`` (already realpath'd) is equal-to / inside / (when
-    ``allow_ancestor``) a proper ancestor of any protected store root. E-1
-    (2026-07-06 red-team): the commonpath containment logic is the SINGLE
+    ``allow_ancestor``) a proper ancestor of any protected store root. The
+    commonpath containment logic is the SINGLE
     leaf ``shell_tools._path_is_contained_in_root`` (the cycle-free root that
     owns _protected_roots/_guard_source_roots). It was inlined here as the
-    third of three commonpath copies -- the drift class the red-team flagged.
+    third of three commonpath copies -- the drift class this guard prevents.
     shell_tools imports neither agent.py nor search_tools, so importing the
     leaf from it (instead of from agent.py) avoids the agent.py<->search_tools
     import cycle that forced the original inline."""
@@ -52,10 +52,9 @@ def _resolved_in_protected_root(resolved: str, roots: tuple,
 def _search_refused_message(resolved: str) -> str:
     """Refusal string for the containment pre-check. Contains 'protected store'
     so leak-probe arm BE can match on it (consistent with the matcher refusal)."""
-    return (f"axis-D: search_code refused -- base path resolves to a protected "
+    return (f"containment guard: search_code refused -- base path resolves to a protected "
             f"store or its ancestor ({resolved!r}). The tool-capable LLM must "
-            f"not recursively read a protected store (parent-walk exfil closed, "
-            f"PR1).")
+            f"not recursively read a protected store (parent-walk exfil closed).")
 
 
 def search_code(pattern: str, search_type: str = "grep", path: Optional[str] = None) -> str:
@@ -69,7 +68,7 @@ def search_code(pattern: str, search_type: str = "grep", path: Optional[str] = N
     Returns:
         Newline-separated list of matches, or a "not found" / refusal message.
 
-    Axis-D (PR1): a containment pre-check runs BEFORE any filesystem walk. If
+    A containment pre-check runs BEFORE any filesystem walk. If
     the resolved base path is equal-to / inside / an ancestor of a protected
     store root, the search is refused (parent-walk exfil closed).
     """
@@ -85,16 +84,16 @@ def search_code(pattern: str, search_type: str = "grep", path: Optional[str] = N
     if _resolved_in_protected_root(_resolved_base, _roots, allow_ancestor=True):
         return _search_refused_message(_resolved_base)
 
-    # Guard-source containment (PR2): refuse a search rooted at / inside / an
+    # Guard-source containment: refuse a search rooted at / inside / an
     # ancestor of a guard-source root (the seam dir, venv, latin workspace).
     # search_code on the guard dir lets the LLM exfil its own guard into the
     # tool-result channel and reason about bypassing it (anti-tampering).
     _groots = _guard_source_roots()
     if _resolved_in_protected_root(_resolved_base, _groots, allow_ancestor=True):
-        return (f"axis-D: search_code refused -- base path resolves to a guard/"
+        return (f"containment guard: search_code refused -- base path resolves to a guard/"
                 f"seam source or its ancestor ({_resolved_base!r}). The "
-                f"tool-capable LLM must not read its own axis-D guard "
-                f"(anti-tampering, PR2).")
+                f"tool-capable LLM must not read its own containment guard "
+                f"(anti-tampering).")
 
     if search_type == "glob":
         matches = []

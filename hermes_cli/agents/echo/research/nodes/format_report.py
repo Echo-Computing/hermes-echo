@@ -139,7 +139,7 @@ async def format_report(state: ResearchState) -> ResearchState:
         #   []      -> clean (no breach)
         #   [..]    -> non-empty: a seam breach (paths that drifted)
         #   None    -> soft-fail: the scratch dir is absent/unverifiable
-        #              (e.g. ANIMA_SEAM_SCRATCH unset / F: unplugged)
+        #              (e.g. HERMES_SEAM_SCRATCH unset / scratch dir on an unplugged volume)
         # A non-empty list AND None are BOTH unsafe to keep over: an
         # unverifiable substrate must NOT silently record `keep` rows (that
         # is the exact fail-open the `or []` coercion below once created —

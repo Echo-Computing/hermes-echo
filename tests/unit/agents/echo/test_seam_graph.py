@@ -1,8 +1,8 @@
 """seam-tests for Graphify (Step 2 recommended-order build, 2026-07-07).
 
 Covers: registration surface (fields + execution_sandbox="none" + rationale),
-axis-D containment pre-check on the `path` param, the query-DSL refusal of a
-path-shaped query (the deep-dive's KEY axis-D risk), the synthetic-repo graph
+integrity guard containment pre-check on the `path` param, the query-DSL refusal of a
+path-shaped query (the deep-dive's KEY integrity guard risk), the synthetic-repo graph
 build (DEFINES/CALLS/INHERITS/IMPORTS edges + EXTRACTED/INFERRED tags + two-pass
 cross-file resolver), the v1 query set (callers_of/callees_of/upstream/downstream/
 shortest path/community/explain), the mtime+size cache (no-op rebuild), the
@@ -80,7 +80,7 @@ def synth_repo(tmp_path):
 # ---------------------------------------------------------------------------
 
 def _registry_with_graph(monkeypatch):
-    """Build the real registry + return the graph SeamedTool (graph_tools.graph
+    """Build the real registry + return the graph CertifiedTool (graph_tools.graph
     handler imported by agent.py). Uses the real _build_registry so the
     import-time attestation + _register_tool chokepoint fire."""
     from hermes_cli.agents.echo import agent as agent_mod
@@ -94,7 +94,7 @@ def test_graph_registered_with_locked_fields(monkeypatch):
     assert t.name == "graph"
     assert t.guard_source_policy == "read"
     assert t.recursive_read is True
-    assert t.requires_affect_cert is True
+    assert t.requires_handler_cert is True
     assert t.execution_sandbox == "none"
     assert t.execution_sandbox_rationale.strip(), (
         "execution_sandbox='none' requires a non-empty rationale (the _register_tool "
@@ -117,23 +117,23 @@ def test_graph_always_registered(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# axis-D containment pre-check on the `path` param
+# integrity guard containment pre-check on the `path` param
 # ---------------------------------------------------------------------------
 
 @pytest.mark.skipif(not _PROTECTED_STORE_MARKERS, reason="protected-store path gate inert in the public build (private stores excluded)")
 def test_graph_refuses_protected_store_path(monkeypatch):
     """graph('path=~/.hermes/store') must refuse (the protected store is the
-    axis-D substrate)."""
+    integrity guard substrate)."""
     cont = os.path.join(os.path.expanduser("~"), ".hermes", "store")
     out = graph_tools.graph(path=cont)
-    assert "axis-D" in out and "refused" in out.lower()
+    assert "integrity guard" in out and "refused" in out.lower()
 
 
 def test_graph_refuses_ancestor_of_protected_store(monkeypatch):
     """graph('path=~') must refuse — a recursive parse from ~ would rglob the
     protected stores into the graph (ancestor case)."""
     out = graph_tools.graph(path="~")
-    assert "axis-D" in out and "refused" in out.lower()
+    assert "integrity guard" in out and "refused" in out.lower()
 
 
 def test_graph_refuses_guard_source(monkeypatch):
@@ -143,7 +143,7 @@ def test_graph_refuses_guard_source(monkeypatch):
     if not gs:
         pytest.skip("no guard source roots configured")
     out = graph_tools.graph(path=gs[0])
-    assert "axis-D" in out and "refused" in out.lower()
+    assert "integrity guard" in out and "refused" in out.lower()
 
 
 def test_graph_refuses_nonexistent_dir(monkeypatch):
@@ -157,20 +157,20 @@ def test_graph_refuses_bad_action(monkeypatch, synth_repo):
 
 
 # ---------------------------------------------------------------------------
-# query-DSL refusal of a path-shaped query (the KEY axis-D risk)
+# query-DSL refusal of a path-shaped query (the KEY integrity guard risk)
 # ---------------------------------------------------------------------------
 
 def test_graph_refuses_path_shaped_query(monkeypatch, synth_repo):
     """The guard-source path-gate inspects only `path`, NOT `query`. A
     path-shaped query (e.g. a raw fs path sneaking in) must be refused by the DSL
-    interpreter — this is the deep-dive's named axis-D risk."""
+    interpreter — this is the deep-dive's named integrity guard risk."""
     out = graph_tools.graph(path=synth_repo, query="/home/user/.hermes/store/state.db")
-    assert "axis-D" in out and "refused" in out.lower() and "query" in out.lower()
+    assert "integrity guard" in out and "refused" in out.lower() and "query" in out.lower()
 
 
 def test_graph_refuses_dotdot_query(monkeypatch, synth_repo):
     out = graph_tools.graph(path=synth_repo, query="../etc/passwd")
-    assert "axis-D" in out and "refused" in out.lower()
+    assert "integrity guard" in out and "refused" in out.lower()
 
 
 def test_graph_accepts_node_id_query(monkeypatch, synth_repo):
@@ -180,14 +180,14 @@ def test_graph_accepts_node_id_query(monkeypatch, synth_repo):
     graph_tools.graph(path=synth_repo, action="rebuild")
     out = graph_tools.graph(path=synth_repo, query="pkg/base.py:2:Base")
     # explain-ish content, not a refusal
-    assert "axis-D" not in out
+    assert "integrity guard" not in out
     assert "refused" not in out.lower()
 
 
 def test_graph_refuses_path_shaped_query_with_colons(monkeypatch, synth_repo):
     """A1 (4-lens re-verify): a relative path-shaped query with a ':N:name' suffix
     (3+ colons) used to slip _looks_like_path. The tightened check refuses when the
-    first segment contains an axis-D protected-surface marker (e.g. .hermes) even
+    first segment contains an integrity guard protected-surface marker (e.g. .hermes) even
     with a colon suffix. The LOAD-BEARING mitigation is that _run_query does no FS
     I/O regardless; this check is defense-in-depth."""
     graph_tools.graph(path=synth_repo, action="rebuild")
@@ -195,7 +195,7 @@ def test_graph_refuses_path_shaped_query_with_colons(monkeypatch, synth_repo):
               ".hermes/cred.pem:2:bar",
               ".hermes/graphs/x:3:baz"):
         out = graph_tools.graph(path=synth_repo, query=q)
-        assert "axis-D" in out, f"query {q!r} not refused"
+        assert "integrity guard" in out, f"query {q!r} not refused"
         assert "refused" in out.lower()
 
 
@@ -204,7 +204,7 @@ def test_graph_accepts_plain_relpath_node_id(monkeypatch, synth_repo):
     suffix is the legitimate form — the tightened check must NOT over-refuse it."""
     graph_tools.graph(path=synth_repo, action="rebuild")
     out = graph_tools.graph(path=synth_repo, query="pkg/util.py:1:helper")
-    assert "axis-D" not in out
+    assert "integrity guard" not in out
 
 
 def test_graph_dormant_when_deps_missing(monkeypatch, synth_repo):
@@ -216,7 +216,7 @@ def test_graph_dormant_when_deps_missing(monkeypatch, synth_repo):
     monkeypatch.setattr(graph_tools, "_TS_IMPORT_ERROR", "ImportError: simulated")
     out = graph_tools.graph(path=synth_repo, query="callers_of:helper")
     assert "dormant" in out.lower() or "not installed" in out.lower()
-    assert "axis-D" not in out  # not an axis-D refusal; a degrade message
+    assert "integrity guard" not in out  # not an integrity guard refusal; a degrade message
     # restore so later tests in the session see the real flag
     monkeypatch.setattr(graph_tools, "_TS_AVAILABLE", True)
 
@@ -319,7 +319,7 @@ def test_query_community(synth_repo):
     graph_tools.graph(path=synth_repo, action="rebuild")
     out = graph_tools.graph(path=synth_repo, query="community:helper")
     # either a community membership or a "not in any" — both valid; not a refusal
-    assert "axis-D" not in out
+    assert "integrity guard" not in out
 
 
 def test_query_explain(synth_repo):
@@ -416,11 +416,11 @@ def test_eviction_by_total_size(monkeypatch, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# import-purity (graph_tools import does no I/O / no affect read)
+# import-purity (graph_tools import does no I/O / no protected-state read)
 # ---------------------------------------------------------------------------
 
 def test_graph_tools_import_pure():
-    """Importing graph_tools must not touch the affect substrate or do filesystem
+    """Importing graph_tools must not touch the protected substrate or do filesystem
     I/O. We assert the module imported + its handlers are module-level functions
     (no __self__) — the cert AST scan + the execution_sandbox='none' rationale
     depend on this."""
@@ -465,7 +465,7 @@ def test_real_slice_smoke_against_seam_tools(monkeypatch, tmp_path):
     assert "rebuilt" in out.lower() or "nodes" in out
     # a query for a real symbol (graph_tools.graph itself)
     q = graph_tools.graph(path=str(repo), query="callers_of:graph")
-    assert "axis-D" not in q  # not a refusal
+    assert "integrity guard" not in q  # not a refusal
     # cleanup the store for this repo so it doesn't pollute later runs
     key = graph_tools._repo_key(str(repo))
     sd = graph_tools._store_dir(key)

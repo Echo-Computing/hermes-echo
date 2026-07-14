@@ -103,8 +103,7 @@ def echo(model, prompt, yes, show_config, research_prompt, research_rounds, rese
             "context_messages": hermes_config.echo.context_messages,
             "shell_timeout": hermes_config.echo.shell_timeout,
             "confirm_destructive": hermes_config.echo.confirm_destructive and not yes,
-            # Orchestrator-injection-cluster Commit 3 (2026-07-06 red-team): the
-            # operator confirmer for the destructive-tool gate in execute_tools.
+            # Destructive-tool gate operator confirmer (used by execute_tools).
             # Interactive REPL (no --prompt) -> a click.confirm prompt (default
             # No); --prompt headless single-shot -> absent (None) so execute_tools
             # refuses destructive tools fail-closed (cannot ask the operator mid-
@@ -169,7 +168,7 @@ def echo(model, prompt, yes, show_config, research_prompt, research_rounds, rese
             except Exception as e:
                 logger.error("Agent error during exit: {}".format(e))
             finally:
-                # F5: consume the per-turn /translate flag on this branch too.
+                # Consume the per-turn /translate flag on this branch too.
                 state["translate_permitted"] = False
             click.echo("Session saved. Goodbye.")
             break
@@ -196,8 +195,8 @@ def echo(model, prompt, yes, show_config, research_prompt, research_rounds, rese
                 click.echo("Error: {}".format(e))
                 click.echo("")
             finally:
-                # /translate escape hatch is per-turn (2026-07-13 red-team F5):
-                # consume the flag on every graph.invoke branch, not just the
+                # /translate escape hatch is per-turn: consume the flag on every
+                # graph.invoke branch, not just the
                 # normal-message branch, so a bare /translate cannot leak the
                 # flag into a subsequent /idea turn (which would render "YES —
                 # translation allowed" in the latin_state block mid-ideation).
@@ -223,7 +222,7 @@ def echo(model, prompt, yes, show_config, research_prompt, research_rounds, rese
                 click.echo("Error: {}".format(e))
                 click.echo("")
             finally:
-                # F5: consume the per-turn /translate flag on this branch too.
+                # Consume the per-turn /translate flag on this branch too.
                 state["translate_permitted"] = False
 
         elif user_input == "/help":
@@ -316,8 +315,7 @@ def echo(model, prompt, yes, show_config, research_prompt, research_rounds, rese
 
 
 def _research_recursion_limit(max_rounds):
-    """Scale the LangGraph recursion_limit with max_rounds (P0-2, 2026-07-06
-    red-team, finding research-recursion-limit-vs-max-rounds).
+    """Scale the LangGraph recursion_limit with max_rounds.
 
     The upstream hardcoded ``recursion_limit=100`` independent of max_rounds,
     so a long run (~8 graph nodes/round) exhausted the budget mid-round and
@@ -338,8 +336,8 @@ def _research_recursion_limit(max_rounds):
 
 def _dump_partial_research_state(partial_state, research_prompt, agent_model, reason):
     """Best-effort dump of whatever graph state exists when a run crashes mid-
-    stream (P0-2). No checkpointer is used in the research graph (leak-probe
-    arm S), so without this a GraphRecursionError / node crash loses the whole
+    stream. No checkpointer is used in the research graph,
+    so without this a GraphRecursionError / node crash loses the whole
     run. ``partial_state`` is the last full state dict yielded by astream before
     the failure. Writes ``research-<ts>-CRASH.json`` alongside normal reports."""
     try:
@@ -430,7 +428,7 @@ def _run_research(hermes_config, research_prompt, model=None, rounds_override=No
         ))
         click.echo("")
 
-        # Run the graph (async). P0-2: stream instead of ainvoke so a
+        # Run the graph (async): stream instead of ainvoke so a
         # GraphRecursionError (or any node crash) still leaves the last full
         # state dict yielded, which we save as a partial report instead of
         # data-lossing the whole run. astream default stream_mode="values"
@@ -539,7 +537,7 @@ def _run_research(hermes_config, research_prompt, model=None, rounds_override=No
         import traceback
         logger.error("Research error: {}".format(e))
         logger.error("Traceback: {}".format(traceback.format_exc()))
-        # P0-2: if we got far enough to have a partial graph state, dump it
+        # If we got far enough to have a partial graph state, dump it
         # before failing so a crash in display/save does not lose the run.
         try:
             ps = locals().get("partial_state", None)

@@ -1,15 +1,14 @@
-"""Orchestrator-injection-cluster Commit 3 (2026-07-06 red-team, audit #10) —
-tests for the confirm_destructive LIVE gate in execute_tools.
+"""Tests for the confirm_destructive LIVE gate in execute_tools.
 
 confirm_destructive was set in config (echo_cmd.py L114, default True; --yes
 forces False) and promised in the system prompt but read by NOTHING —
 documented-not-enforced. This makes it a live gate at the execute_tools
-dispatch chokepoint (agent.py, after every axis-D gate has passed and before
-any tool executes): a SeamedTool with destructive=True is REFUSED fail-closed
+dispatch chokepoint (agent.py, after every integrity guard has passed and before
+any tool executes): a CertifiedTool with destructive=True is REFUSED fail-closed
 unless an operator confirmer approves it (interactive REPL) or
 confirm_destructive is off. A pure guard_source_policy=='write' check would
 MISS run_shell (policy 'none' — takes `command`, not `path`), so destructive is
-a separate SeamedTool metadata field, set on write_file / edit_file / run_shell.
+a separate CertifiedTool metadata field, set on write_file / edit_file / run_shell.
 
 The gate is fail-closed in every refusal mode: confirmer absent (headless
 --prompt), confirmer returns False, confirmer raises, or confirmer yields a
@@ -19,21 +18,21 @@ confirmer is operator-supplied (echo_cmd), never LLM-supplied; it receives
 
 These tests pin all six behaviors (a)-(f) on the REAL gate path (execute_tools
 with a monkeypatched _build_registry routing a fake destructive/non-destructive
-SeamedTool through the metadata-driven gates), not a reimplementation.
+CertifiedTool through the metadata-driven gates), not a reimplementation.
 """
 import pytest
 
-from hermes_cli.agents.echo.agent import SeamedTool, execute_tools, _build_registry
+from hermes_cli.agents.echo.agent import CertifiedTool, execute_tools, _build_registry
 from hermes_cli.agents.echo.state import EchoState
 
 
-# ---- clean handlers (affect-cert clean; the gate under test is confirm, not cert) ----
+# ---- clean handlers (handler-cert clean; the gate under test is confirm, not cert) ----
 
 def _clean_handler(x: str = "") -> str:
     return "ok"
 
 
-# ---- a minimal fake registry (same pattern as test_seam_p08b_collapse) ----
+# ---- a minimal fake registry (same pattern as the cert-collapse tests) ----
 
 class _FakeReg:
     def __init__(self, tool, call):
@@ -60,30 +59,30 @@ class _FakeReg:
 
 
 def _destructive_tool():
-    """A destructive, affect-clean, no-path SeamedTool — passes the cert
-    (requires_affect_cert=False skips it) + guard-source (policy 'none') +
+    """A destructive, cert-clean, no-path CertifiedTool — passes the cert
+    (requires_handler_cert=False skips it) + guard-source (policy 'none') +
     protected-store (params reference no store) gates, so the ONLY gate left is
     the confirm_destructive gate under test."""
-    return SeamedTool(
+    return CertifiedTool(
         name="my_destructive",
         description="destructive probe",
         parameters=[{"name": "x", "type": "string", "required": False}],
         handler=_clean_handler,
         guard_source_policy="none",   # no `path` param -> sanity permits "none"
-        requires_affect_cert=False,   # skip the cert; the gate under test is confirm
+        requires_handler_cert=False,   # skip the cert; the gate under test is confirm
         destructive=True,
     )
 
 
 def _non_destructive_tool():
     """Same as above but destructive=False — the confirm gate must skip it."""
-    return SeamedTool(
+    return CertifiedTool(
         name="my_safe",
         description="safe probe",
         parameters=[{"name": "x", "type": "string", "required": False}],
         handler=_clean_handler,
         guard_source_policy="none",
-        requires_affect_cert=False,
+        requires_handler_cert=False,
         destructive=False,
     )
 
@@ -188,8 +187,8 @@ class TestConfirmDestructiveGate:
 
     def test_confirmer_nonbool_is_refused(self, monkeypatch):
         """A confirmer returning a truthy NON-bool ("yes") is REFUSED — the gate
-        requires the bool True (``_r is True``), not bool() coercion. This is the
-        4-lens B (2026-07-06) invariant: non-bool -> refuse. The sole real
+        requires the bool True (``_r is True``), not bool() coercion. This is the strict
+        invariant: non-bool -> refuse. The sole real
         confirmer (echo_cmd's click.confirm) returns a real bool, so the strict
         check has no downside and closes the bool()-coercion overclaim. (test_b
         covers the bool-True-accepts path.)"""
