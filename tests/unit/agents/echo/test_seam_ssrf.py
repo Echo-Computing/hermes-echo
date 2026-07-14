@@ -29,7 +29,9 @@ suite is unaffected (regression-guarded by the separate ``test_leak_probe.py``).
 """
 import pytest
 
-from hermes_cli.agents.echo.agent import CertifiedTool, execute_tools, _build_registry
+from hermes_cli.agents.echo.agent import (
+    CertifiedTool, execute_tools, _build_registry, _PROTECTED_STORE_MARKERS,
+)
 from hermes_cli.agents.echo.state import EchoState
 from hermes_cli.agents.echo.tools.registry import Tool
 from hermes_cli.agents.echo.tools.seam_safe_fetch import (
@@ -201,7 +203,15 @@ class TestHandlerReRegistration:
         )
         assert _t.handler.__name__ == "safe_fetch_wrapper"
         assert _t._handler_cert_ok is True  # construction cert passed (clean)
-        assert _t.execution_sandbox == "none"
+        # execution_sandbox floor: the public build (protected-store markers
+        # absent) registers fetch_url with the inert 'none' sandbox. The seam
+        # build's protected-store ceiling is asserted by the private seam-only
+        # test_seam_fetch_ceiling twin (NOT shipped to the public tree — two-
+        # version rule; the private ceiling name is never referenced here). So
+        # assert the floor only when markers are absent, and skip it on the seam
+        # build where the ceiling supersedes the floor.
+        if not _PROTECTED_STORE_MARKERS:
+            assert _t.execution_sandbox == "none"
 
     def test_upstream_fetch_url_symbol_not_dispatched(self):
         """The upstream web_tools.fetch_url must NOT be the registered handler
